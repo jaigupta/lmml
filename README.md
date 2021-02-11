@@ -1,2 +1,2 @@
 # lmml
-ML basics
+Basic set of libraries for ML development.

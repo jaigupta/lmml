@@ -1,3 +1,7 @@
 dist/
 build/
 *.egg-info/
+logs/
+data/
+.vscode/
+checkpoints/
