@@ -88,7 +88,7 @@ def load_tfds_voc_dataset(ds_type, split, batch_size, image_size):
 
 
 def load_dataset(ds_type, split, batch_size, image_size):
-    if ds_type in ('voc/2007', 'voc/2012'):
+    if ds_type in ('voc/2007', 'voc/2012', 'coco/2014', 'coco/2017'):
         return load_tfds_voc_dataset(ds_type, split, batch_size, image_size)
 
     raise ValueError(f'Dataset {ds_type} not handled.')

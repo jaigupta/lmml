@@ -5,3 +5,5 @@ logs/
 data/
 .vscode/
 checkpoints/
+*/.vscode/
+.DS_Store

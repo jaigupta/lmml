@@ -19,10 +19,9 @@ from lmml.models.yolov3 import (
     yolo_tiny_anchors, yolo_tiny_anchor_masks,
     freeze_all
 )
-from scripts.yolov3 import dataset
+from lmmlscripts.yolov3 import dataset
 
 flags.DEFINE_string('dataset', '', 'path to dataset')
-flags.DEFINE_string('val_dataset', '', 'path to validation dataset')
 flags.DEFINE_boolean('tiny', False, 'yolov3 or yolov3-tiny')
 flags.DEFINE_string('weights', './checkpoints/yolov3.tf',
                     'path to weights file')
