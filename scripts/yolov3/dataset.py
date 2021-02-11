@@ -70,37 +70,25 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     return tuple(y_outs)
 
 
-def transform_images(x_train, size):
-    x_train = tf.image.resize(x_train, (size, size))
-    x_train = x_train / 255
-    return x_train
-
-
-def load_tfds_voc_dataset(ds_type, split, image_size):
+def load_tfds_voc_dataset(ds_type, split, batch_size, image_size):
     import tensorflow_datasets as tfds
     ds = tfds.load(ds_type, split=split, shuffle_files=True)
     
     def mapper(example):
         image = example['image']
+        image = tf.image.resize(image, (image_size, image_size)) / 255.
         h, w, _ = image.shape
         labels = example['objects']['label']
         labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
         bboxes = example['objects']['bbox']
-        # res = tf.pad(bboxes, [[0, 0], [0, 1]])
         res = tf.concat([bboxes, labels], axis=-1)
-        res = tf.pad(res, [[0, 20 - tf.shape(res)[0]], [0, 0]])
-        print(labels.shape)
-        print(bboxes.shape)
-        # filename = example['image/filename']
-        return (
-            tf.image.resize(image, (image_size, image_size)),
-            res)
+        return image, tf.sparse.from_dense(res)
     
-    return ds.map(mapper)
+    return ds.map(mapper).batch(batch_size).map(lambda x, y: (x, tf.sparse.to_dense(y)))
 
 
-def load_dataset(ds_type, split, image_size=416):
+def load_dataset(ds_type, split, batch_size, image_size):
     if ds_type in ('voc/2007', 'voc/2012'):
-        return load_tfds_voc_dataset(ds_type, split, image_size)
+        return load_tfds_voc_dataset(ds_type, split, batch_size, image_size)
 
     raise ValueError(f'Dataset {ds_type} not handled.')

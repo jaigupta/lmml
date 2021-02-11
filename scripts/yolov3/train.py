@@ -62,22 +62,12 @@ def main(_argv):
         anchors = yolo_anchors
         anchor_masks = yolo_anchor_masks
 
-    train_dataset = dataset.load_dataset(
-        FLAGS.dataset, 'train', FLAGS.size)
-    train_dataset = train_dataset.shuffle(buffer_size=512)
-    train_dataset = train_dataset.batch(FLAGS.batch_size)
-    train_dataset = train_dataset.map(lambda x, y: (
-        dataset.transform_images(x, FLAGS.size),
-        dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
-    train_dataset = train_dataset.prefetch(
-        buffer_size=tf.data.experimental.AUTOTUNE)
+    train_dataset = dataset.load_dataset(FLAGS.dataset, 'train', FLAGS.batch_size, FLAGS.size)
+    train_dataset = train_dataset.map(lambda x, y: (x, dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
+    train_dataset = train_dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
-    val_dataset = dataset.load_dataset(
-        FLAGS.dataset, 'validation', FLAGS.size)
-    val_dataset = val_dataset.batch(FLAGS.batch_size)
-    val_dataset = val_dataset.map(lambda x, y: (
-        dataset.transform_images(x, FLAGS.size),
-        dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
+    val_dataset = dataset.load_dataset(FLAGS.dataset, 'validation', FLAGS.batch_size, FLAGS.size)
+    val_dataset = val_dataset.map(lambda x, y: (x, dataset.transform_targets(y, anchors, anchor_masks, FLAGS.size)))
 
     # Configure the model for transfer learning
     if FLAGS.transfer == 'none':
