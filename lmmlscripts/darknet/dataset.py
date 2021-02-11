@@ -4,6 +4,7 @@ IMAGENET_DS_TYPES = [
     'imagenet2012',
     'imagenet_resized',
     'imagenette',
+    'imagewang',
 ]
 
 def mapper(example, image_size):
