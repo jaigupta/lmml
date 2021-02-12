@@ -1,6 +1,7 @@
 import sys
 sys.path.append('../lmml')
 
+import os
 from absl import app
 from absl import flags
 from absl import logging
@@ -16,6 +17,7 @@ from tensorflow.keras.callbacks import (
     ModelCheckpoint,
     TensorBoard
 )
+from lmmlscripts.core import files
 
 flags.DEFINE_enum('mode', 'graph', ['graph', 'eager_tf', 'eager_fit'], 'Mode for training.')
 flags.DEFINE_string('dataset', 'imagenet2012', 'The dataset to train on.')
@@ -25,11 +27,15 @@ flags.DEFINE_integer('batch_size', 8, 'batch size')
 flags.DEFINE_float('learning_rate', 1e-3, 'learning rate')
 flags.DEFINE_integer('num_classes', 1000, 'number of classes in the model')
 flags.DEFINE_enum('backbone', 'darknet', ['darknet', 'darknet_tiny'], 'The backbone for classifier')
+flags.DEFINE_string('output_dir', './output', 'Directory for outputs')
 
 FLAGS = flags.FLAGS
 
 
 def main(_argv):
+    files.ensure_dir_exists(FLAGS.output_dir)
+    files.ensure_dir_exists(os.path.join(FLAGS.output_dir, 'logs'))
+    files.ensure_dir_exists(os.path.join(FLAGS.output_dir, 'checkpoints'))
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
     for physical_device in physical_devices:
         tf.config.experimental.set_memory_growth(physical_device, True)
@@ -86,15 +92,16 @@ def main(_argv):
 
             avg_loss.reset_states()
             avg_val_loss.reset_states()
-            model.save_weights(f'checkpoints/{FLAGS.backbone}_{epoch}.tf')
+            model.save_weights(os.path.join(FLAGS.output_dir, f'checkpoints/{FLAGS.backbone}_{epoch}.tf'))
     else:
         model.compile(optimizer=optimizer, loss=loss_fn, run_eagerly=(FLAGS.mode == 'eager_fit'))
 
+        checkpoint_path = os.path.join(FLAGS.output_dir, f'checkpoints/{FLAGS.backbone}' + '_{epoch}.tf')
         callbacks = [
             ReduceLROnPlateau(verbose=1),
             EarlyStopping(patience=3, verbose=1),
-            ModelCheckpoint(f'checkpoints/{FLAGS.backbone}' + '_{epoch}.tf', verbose=1, save_weights_only=True),
-            TensorBoard(log_dir='logs')
+            ModelCheckpoint(checkpoint_path, verbose=1, save_weights_only=True),
+            TensorBoard(log_dir=os.path.join(FLAGS.output_dir, 'logs'))
         ]
 
         history = model.fit(train_dataset,
