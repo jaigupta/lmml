@@ -1,3 +1,5 @@
+import os
+
 import tensorflow as tf
 
 IMAGENET_DS_TYPES = [
@@ -17,7 +19,7 @@ def mapper(example, image_size):
 
 def load_imagenet_ds(ds_type, split, batch_size, image_size):
     import tensorflow_datasets as tfds
-    ds = tfds.load(ds_type, split=split)
+    ds = tfds.load(ds_type, split=split, data_dir=os.environ.get('TFDS_DATA_DIR', None))
     return ds.map(lambda example: mapper(example, image_size)).batch(batch_size)
 
 
