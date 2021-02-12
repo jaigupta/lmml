@@ -21,8 +21,10 @@ def load_imagenet_ds(ds_type, split, batch_size, image_size):
     return ds.map(lambda example: mapper(example, image_size)).batch(batch_size)
 
 
-def load_dataset(ds_type, split, batch_size, image_size):
-    if '/' in ds_type and ds_type.split('/')[0] in IMAGENET_DS_TYPES:
-        return load_imagenet_ds(ds_type, split, batch_size, image_size)
+def load_dataset(ds_type: str, split: str, batch_size: int, image_size: int):
+    if ds_type.startswith('tfds://'):
+        tfds_type = ds_type[len('tfds://'):]
+        if tfds_type.split('/')[0] in IMAGENET_DS_TYPES:
+            return load_imagenet_ds(tfds_type, split, batch_size, image_size)
 
     raise ValueError(f'Dataset {ds_type} not handled.')
