@@ -20,7 +20,7 @@ def mapper(example, image_size):
 def load_imagenet_ds(ds_type, split, batch_size, image_size):
     import tensorflow_datasets as tfds
     ds = tfds.load(ds_type, split=split, data_dir=os.environ.get('TFDS_DATA_DIR', None))
-    return ds.map(lambda example: mapper(example, image_size)).batch(batch_size)
+    return ds.map(lambda example: mapper(example, image_size), num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(8)
 
 
 def load_dataset(ds_type: str, split: str, batch_size: int, image_size: int):

@@ -1,4 +1,4 @@
-Trainer.dataset = 'tfds://imagewang/160px'
+Trainer.dataset = 'tfds://imagenet2012'
 Trainer.backbone = 'darknet'
 Trainer.image_size = 420
 Trainer.num_classes = 1000
