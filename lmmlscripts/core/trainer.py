@@ -62,6 +62,11 @@ class BaseTrainer:
         self.train_writer = self._create_summary_writer('train')
         self.eval_writer = self._create_summary_writer('eval')
         self.dev_eval_writer = self._create_summary_writer('dev_eval')
+
+        with self.train_writer.as_default():
+            # Replace \n with \n\n to improve logging.
+            gin_config = gin.operative_config_str().replace('\n', '\n\n')
+            tf.summary.text('gin_config', gin_config, 0)
     
         self.ds_train = None
         self.ds_val = None
