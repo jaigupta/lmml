@@ -21,14 +21,11 @@ def get_backbone_model(backbone: str):
     raise ValueError(f'Unknown backbone: {backbone}')
 
 
-def image_classifier(num_classes, backbone='darknet'):
-    backbone_model = get_backbone_model(backbone)
+def image_classifier(num_classes, backbone_model):
     x = inputs = Input([None, None, 3])
     x = features = backbone_model(x)[-1]
-    print(x.shape)
     x = AveragePooling2D(pool_size=(8,8))(x)
     x = tf.squeeze(x, axis=[1, 2])
-    print(x.shape)
     x = logits = Dense(num_classes)(x)
     return tf.keras.Model(inputs, (logits,), name='classifier')
 
