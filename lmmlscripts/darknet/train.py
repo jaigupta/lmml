@@ -21,6 +21,8 @@ from lmmlscripts.core import files
 from lmmlscripts.core.trainer import BaseTrainer, BaseTrainerConfig
 from lmmlscripts.darknet import dataset
 
+flags.DEFINE_multi_string(
+  'gin_param', None, 'Repeated Gin parameter bindings.')
 
 @gin.configurable
 class Trainer(BaseTrainer):
@@ -95,7 +97,7 @@ class Trainer(BaseTrainer):
         tf.saved_model.save(self.model, os.path.join(self.output_dir, 'saved_model/classifier'))
 
 def main(_argv):
-    gin.parse_config_file('lmmlscripts/gin/darknet.gin')
+    gin.parse_config_files_and_bindings(['lmmlscripts/gin/darknet.gin'], flags.FLAGS.gin_param)
     config = BaseTrainerConfig()
     t = Trainer(config)
     t.start()
