@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+import attr
 import itertools
 import os
 from typing import List
@@ -11,16 +11,16 @@ from lmmlscripts.core import files
 
 
 @gin.configurable
-@dataclass
+@attr.s
 class BaseTrainerConfig:
-    train_batch_size: int = field(default=8)
-    val_batch_size: int = field(default=8)
-    run_eval_every: int = field(default=100)
-    num_epochs: int = field(default=5)
-    eval_iters: int = field(default=20)
-    distributed_training: bool = field(default=False)
-    modes: List[str] = field(default=('train', 'eval'))
-    learning_rate: float = field(default=1e-3)
+    train_batch_size: int = attr.ib(default=8)
+    val_batch_size: int = attr.ib(default=8)
+    run_eval_every: int = attr.ib(default=100)
+    num_epochs: int = attr.ib(default=5)
+    eval_iters: int = attr.ib(default=20)
+    distributed_training: bool = attr.ib(default=False)
+    modes: List[str] = attr.ib(default=('train', 'eval'))
+    learning_rate: float = attr.ib(default=1e-3)
 
 
 class BaseTrainer:

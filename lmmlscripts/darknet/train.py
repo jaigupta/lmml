@@ -3,7 +3,7 @@ import os
 from absl import app
 from absl import flags
 from absl import logging
-from dataclasses import dataclass, field
+import attr
 import gin
 import numpy as np
 import tensorflow as tf
