@@ -22,33 +22,40 @@ from lmmlscripts.core.trainer import BaseTrainer, BaseTrainerConfig
 from lmmlscripts.darknet import dataset
 
 flags.DEFINE_multi_string(
-  'gin_param', None, 'Repeated Gin parameter bindings.')
+    'gin_param', None, 'Repeated Gin parameter bindings.')
+
 
 @gin.configurable
 class Trainer(BaseTrainer):
-    def __init__(self, config, image_size, dataset, num_classes, backbone, output_dir):
+    def __init__(
+            self, config,
+            image_size=gin.REQUIRED, dataset=gin.REQUIRED, num_classes=gin.REQUIRED,
+            backbone=gin.REQUIRED, output_dir=gin.REQUIRED):
         super().__init__(config)
         self.image_size = image_size
         self.dataset = dataset
         self.num_classes = num_classes
         self.backbone = backbone
         self.output_dir = output_dir
-
-    def build(self):
         logging.info('Using image size: %s', self.image_size)
         physical_devices = tf.config.experimental.list_physical_devices('GPU')
         for physical_device in physical_devices:
             tf.config.experimental.set_memory_growth(physical_device, True)
 
+    def build(self):
         self.backbone_model = get_backbone_model(self.backbone)
         self.model = image_classifier(self.num_classes, self.backbone_model)
-        self.checkpointer = tf.train.Checkpoint(model=self.model, backbone_model=self.backbone_model, total_steps=self.total_steps, epoch=self.epoch)
+        self.checkpointer = tf.train.Checkpoint(
+            model=self.model, backbone_model=self.backbone_model, total_steps=self.total_steps, epoch=self.epoch)
 
-        self.ds_train = dataset.load_dataset(self.dataset, 'train', self.config.train_batch_size, self.image_size)
-        self.ds_val = dataset.load_dataset(self.dataset, 'validation', self.config.val_batch_size, self.image_size)
+        self.ds_train = dataset.load_dataset(
+            self.dataset, 'train', self.config.train_batch_size, self.image_size)
+        self.ds_val = dataset.load_dataset(
+            self.dataset, 'validation', self.config.val_batch_size, self.image_size)
 
         self.optimizer = keras.optimizers.Adam(lr=self.config.learning_rate)
-        self.loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        self.loss_fn = keras.losses.SparseCategoricalCrossentropy(
+            from_logits=True)
         self.avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
         self.avg_val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
 
@@ -62,7 +69,8 @@ class Trainer(BaseTrainer):
             total_loss = pred_loss + regularization_loss
 
         grads = tape.gradient(total_loss, self.model.trainable_variables)
-        self.optimizer.apply_gradients(zip(grads, self.model.trainable_variables))
+        self.optimizer.apply_gradients(
+            zip(grads, self.model.trainable_variables))
         self.avg_loss.update_state(total_loss)
 
         return total_loss, pred_loss
@@ -88,19 +96,25 @@ class Trainer(BaseTrainer):
             self.epoch.numpy(),
             self.avg_loss.result().numpy(),
             self.avg_val_loss.result().numpy()))
-        tf.summary.scalar('avg_loss', self.avg_val_loss.result(), self.total_steps)
+        tf.summary.scalar(
+            'avg_loss', self.avg_val_loss.result(), self.total_steps)
 
         self.avg_loss.reset_states()
         self.avg_val_loss.reset_states()
 
-        tf.saved_model.save(self.backbone_model, os.path.join(self.output_dir, 'saved_model/backbone'))
-        tf.saved_model.save(self.model, os.path.join(self.output_dir, 'saved_model/classifier'))
+        tf.saved_model.save(self.backbone_model, os.path.join(
+            self.output_dir, 'saved_model/backbone'))
+        tf.saved_model.save(self.model, os.path.join(
+            self.output_dir, 'saved_model/classifier'))
+
 
 def main(_argv):
-    gin.parse_config_files_and_bindings(['lmmlscripts/gin/darknet.gin'], flags.FLAGS.gin_param)
+    gin.parse_config_files_and_bindings(
+        ['lmmlscripts/gin/darknet.gin'], flags.FLAGS.gin_param)
     config = BaseTrainerConfig()
     t = Trainer(config)
     t.start()
+
 
 if __name__ == '__main__':
     app.run(main)

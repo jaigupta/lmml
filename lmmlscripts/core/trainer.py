@@ -26,6 +26,7 @@ class BaseTrainerConfig:
 class BaseTrainer:
     def __init__(self, config):
         self.config = config
+        self.output_dir: str = None
 
     def start(self):
         files.ensure_dirs_exist([
@@ -40,17 +41,17 @@ class BaseTrainer:
         for _ in range(self.config.num_epochs):
             self.epoch.assign_add(1)
             if 'train' in self.config.modes:
-                with self.train_writer.as_default():
+                with self.train_writer.as_default():  # pylint: disable=not-context-manager
                     self._train()
             else:
                 assert 'eval' in self.config.modes or 'dev_eval' in self.config.modes
-                self.wait_and_load_next_checkpoint()
+                self._wait_and_load_next_checkpoint()
 
             if 'eval' in self.config.modes:
-                with self.eval_writer.as_default():
+                with self.eval_writer.as_default():  # pylint: disable=not-context-manager
                     self._eval()
             if 'dev_eval' in self.config.modes:
-                with self.dev_eval_writer.as_default():
+                with self.dev_eval_writer.as_default():  # pylint: disable=not-context-manager
                     self._dev_eval()
 
     def _build(self):
@@ -67,15 +68,20 @@ class BaseTrainer:
             # Replace \n with \n\n to improve logging.
             gin_config = gin.operative_config_str().replace('\n', '\n\n')
             tf.summary.text('gin_config', gin_config, 0)
-    
+
         self.ds_train = None
         self.ds_val = None
+        self.checkpointer = None
+        self.mirrored_strategy = None
 
         self.build()
         self._setup_dataset()
         self._init_from_checkpoints(fail_silent=True)
 
     def _setup_devices_and_strategy(self):
+        pass
+
+    def _wait_and_load_next_checkpoint(self):
         pass
 
     def _create_summary_writer(self, name):
@@ -88,9 +94,11 @@ class BaseTrainer:
     def _setup_dataset(self):
         if self.config.distributed_training:
             assert self.ds_train is not None
-            self.ds_train = tf.mirrored_strategy.experimental_distribute_dataset(self.ds_train)
+            self.ds_train = self.mirrored_strategy.experimental_distribute_dataset(
+                self.ds_train)
             if self.ds_val:
-                self.ds_val = tf.mirrored_strategy.experimental_distribute_dataset(self.ds_val)
+                self.ds_val = self.mirrored_strategy.experimental_distribute_dataset(
+                    self.ds_val)
 
         if self.config.run_eval_every > 0:
             # Epoch does not use full dataset. Cache iter so that we don't restart.
@@ -122,8 +130,10 @@ class BaseTrainer:
             ds_iter = iter(self.ds_train)
         else:
             # An epoch is defined by number of train iterations.
-            logging.info('Running max %s iters for train', self.config.run_eval_every)
-            ds_iter = itertools.islice(self.ds_train_iter, 0, self.config.run_eval_every)
+            logging.info('Running max %s iters for train',
+                         self.config.run_eval_every)
+            ds_iter = itertools.islice(
+                self.ds_train_iter, 0, self.config.run_eval_every)
 
         for i, data in enumerate(ds_iter):
             logging.info('train/%s', i)
@@ -150,7 +160,8 @@ class BaseTrainer:
         if self.config.run_eval_every <= 0:
             ds_iter = iter(self.ds_train)
         else:
-            ds_iter = itertools.islice(self.ds_train_iter, 0, self.config.run_eval_every)
+            ds_iter = itertools.islice(
+                self.ds_train_iter, 0, self.config.run_eval_every)
 
         self.eval_start()
 
@@ -163,7 +174,7 @@ class BaseTrainer:
     def eval_start(self):
         pass
 
-    def eval(self):
+    def eval_step(self):
         pass
 
     def _eval_end(self):
