@@ -23,6 +23,19 @@ class DummyStrategy:
         return DummyScope()
 
 
+def _try_setup_tpu_strategy():
+    try:
+        resolver = tf.distribute.cluster_resolver.TPUClusterResolver()
+        tf.config.experimental_connect_to_cluster(resolver)
+        topology = tf.tpu.experimental.initialize_tpu_system(resolver)
+        logging.info('topology.mesh_shape: %s', topology.mesh_shape)
+        logging.info('topology._device_coordinates: %s', topology.device_coordinates)
+        return tf.distribute.experimental.TPUStrategy(resolver)
+    except ValueError as e:
+        logging.warn('Could not initialize TPU: %s', e)
+        return None
+
+
 def _setup_devices():
     tpu_devices = tf.config.experimental.list_logical_devices('TPU')
     if tpu_devices:
@@ -35,9 +48,13 @@ def _setup_devices():
     return tf.config.experimental.list_logical_devices('CPU')
 
 
-def _setup_strategy(devices: List[any]):
-    return tf.distribute.MirroredStrategy(devices=devices)
-
+def _setup_devices_and_strategy(distributed_training: bool):
+    tpu_strategy = _try_setup_tpu_strategy() if distributed_training else DummyStrategy()
+    devices = _setup_devices()
+    if tpu_strategy:
+        return devices, tpu_strategy
+    return devices, tf.distribute.MirroredStrategy(devices=devices) if distributed_training else DummyStrategy()
+    
 
 @gin.configurable
 @attr.s
@@ -84,8 +101,7 @@ class BaseTrainer:
 
     def _build(self):
         self.checkpoints_path = ''
-        self.devices = _setup_devices()
-        self.mirrored_strategy = _setup_strategy(self.devices) if self.config.distributed_training else DummyStrategy()
+        self.devices, self.mirrored_strategy = _setup_devices_and_strategy(self.config.distributed_training)
         tf.debugging.set_log_device_placement(True)
 
         self.epoch = tf.Variable(0, dtype=tf.int64)
