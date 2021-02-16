@@ -1,6 +1,7 @@
 import attr
 import itertools
 import os
+import time
 from typing import List
 
 from absl import logging
@@ -69,7 +70,7 @@ class BaseTrainerConfig:
     learning_rate: float = attr.ib(default=1e-3)
 
 class BaseTrainer:
-    def __init__(self, config):
+    def __init__(self, config: BaseTrainerConfig):
         self.config = config
         self.output_dir: str = None
 
@@ -80,10 +81,10 @@ class BaseTrainer:
             os.path.join(self.output_dir, 'saved_model/backbone'),
             os.path.join(self.output_dir, 'saved_model/classifier'),
             os.path.join(self.output_dir, 'summary'),
-            os.path.join(self.output_dir, 'checkpoint'),
+            os.path.join(self.output_dir, 'ckpts'),
         ])
         self._build()
-        for _ in range(self.config.num_epochs):
+        while self.epoch.numpy() < self.config.num_epochs:
             self.epoch.assign_add(1)
             if 'train' in self.config.modes:
                 with self.train_writer.as_default():  # pylint: disable=not-context-manager
@@ -100,20 +101,23 @@ class BaseTrainer:
                     self._dev_eval()
 
     def _build(self):
-        self.checkpoints_path = ''
+        self.checkpoints_path = os.path.join(self.output_dir, 'ckpts')
         self.devices, self.mirrored_strategy = _setup_devices_and_strategy(self.config.distributed_training)
         tf.debugging.set_log_device_placement(True)
 
         self.epoch = tf.Variable(0, dtype=tf.int64)
         self.total_steps = tf.Variable(0, dtype=tf.int64)
-        self.train_writer = self._create_summary_writer('train')
-        self.eval_writer = self._create_summary_writer('eval')
-        self.dev_eval_writer = self._create_summary_writer('dev_eval')
+        if 'train' in self.config.modes:
+            self.train_writer = self._create_summary_writer('train')
+            with self.train_writer.as_default():
+                # Replace \n with \n\n to improve logging.
+                gin_config = gin.operative_config_str().replace('\n', '\n\n')
+                tf.summary.text('gin_config', gin_config, 0)
+        if 'eval' in self.config.modes:
+            self.eval_writer = self._create_summary_writer('eval')
+        if 'dev_eval' in self.config.modes:
+            self.dev_eval_writer = self._create_summary_writer('dev_eval')
 
-        with self.train_writer.as_default():
-            # Replace \n with \n\n to improve logging.
-            gin_config = gin.operative_config_str().replace('\n', '\n\n')
-            tf.summary.text('gin_config', gin_config, 0)
 
         self.ds_train = None
         self.ds_val = None
@@ -121,10 +125,20 @@ class BaseTrainer:
 
         self.build()
         self._setup_dataset()
-        self._init_from_checkpoints(fail_silent=True)
+        if 'train' in self.config.modes:
+            # evals load later, in _wait_and_load_next_checkpoint.
+            # Hence, loading only for 'train' mode.
+            self._init_from_checkpoints(fail_silent=True)
 
     def _wait_and_load_next_checkpoint(self):
-        pass
+        cur_total_steps = self.total_steps.numpy()
+        logging.warn('waiting for next checkpoint steps: %s', cur_total_steps)
+        while True:
+            self._init_from_checkpoints()
+            if cur_total_steps != self.total_steps.numpy():
+                break
+            logging.warn('waiting for next checkpoint steps: %s', cur_total_steps)
+            time.sleep(10)
 
     def _create_summary_writer(self, name):
         path = os.path.join(self.output_dir, 'summary')
@@ -185,6 +199,8 @@ class BaseTrainer:
 
             self.train_writer.flush()
 
+        self._train_epoch_end()
+
     def train_step_start(self):
         pass
 
@@ -192,6 +208,13 @@ class BaseTrainer:
         raise NotImplementedError()
 
     def train_step_end(self, *args):
+        pass
+
+    def _train_epoch_end(self):
+        self.checkpointer.save(os.path.join(self.checkpoints_path, 'ckpt'))
+        self.train_epoch_end()
+
+    def train_epoch_end(self):
         pass
 
     def _eval(self):
@@ -218,7 +241,6 @@ class BaseTrainer:
         pass
 
     def _eval_end(self):
-        self.checkpointer.save(os.path.join(self.output_dir, 'checkpoint'))
         self.eval_end()
 
     def eval_end(self):

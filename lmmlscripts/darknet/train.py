@@ -83,6 +83,14 @@ class Trainer(BaseTrainer):
         tf.summary.scalar('accuracy', self.accuracy.result(), self.total_steps)
         tf.summary.scalar('avg_loss', self.avg_loss.result(), self.total_steps)
 
+    def train_epoch_end(self):
+        self.avg_loss.reset_states()
+        self.accuracy.reset_states()
+        tf.saved_model.save(self.backbone_model, os.path.join(
+            self.output_dir, 'saved_model/backbone'))
+        tf.saved_model.save(self.model, os.path.join(
+            self.output_dir, 'saved_model/classifier'))
+
     @tf.function
     def eval_step(self, batch):
         images, labels = batch
@@ -100,15 +108,8 @@ class Trainer(BaseTrainer):
         tf.summary.scalar('avg_loss', self.avg_val_loss.result(), self.total_steps)
         tf.summary.scalar('accuracy', self.val_accuracy.result(), self.total_steps)
 
-        self.avg_loss.reset_states()
         self.avg_val_loss.reset_states()
-        self.accuracy.reset_states()
         self.val_accuracy.reset_states()
-
-        tf.saved_model.save(self.backbone_model, os.path.join(
-            self.output_dir, 'saved_model/backbone'))
-        tf.saved_model.save(self.model, os.path.join(
-            self.output_dir, 'saved_model/classifier'))
 
 
 def main(_argv):
