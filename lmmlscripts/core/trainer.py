@@ -10,6 +10,35 @@ import tensorflow as tf
 from lmmlscripts.core import files
 
 
+class DummyScope:
+    def __enter__(self, *args):
+        pass
+
+    def __exit__(self, *args):
+        pass
+
+
+class DummyStrategy:
+    def scope(self):
+        return DummyScope()
+
+
+def _setup_devices():
+    tpu_devices = tf.config.experimental.list_logical_devices('TPU')
+    if tpu_devices:
+        return tpu_devices
+
+    gpu_devices = tf.config.experimental.list_logical_devices('GPU')
+    if gpu_devices:
+        return gpu_devices
+
+    return tf.config.experimental.list_logical_devices('CPU')
+
+
+def _setup_strategy(devices: List[any]):
+    return tf.distribute.MirroredStrategy(devices=devices)
+
+
 @gin.configurable
 @attr.s
 class BaseTrainerConfig:
@@ -21,7 +50,6 @@ class BaseTrainerConfig:
     distributed_training: bool = attr.ib(default=False)
     modes: List[str] = attr.ib(default=('train', 'eval'))
     learning_rate: float = attr.ib(default=1e-3)
-
 
 class BaseTrainer:
     def __init__(self, config):
@@ -56,7 +84,9 @@ class BaseTrainer:
 
     def _build(self):
         self.checkpoints_path = ''
-        self._setup_devices_and_strategy()
+        self.devices = _setup_devices()
+        self.mirrored_strategy = _setup_strategy(self.devices) if self.config.distributed_training else DummyStrategy()
+        tf.debugging.set_log_device_placement(True)
 
         self.epoch = tf.Variable(0, dtype=tf.int64)
         self.total_steps = tf.Variable(0, dtype=tf.int64)
@@ -72,14 +102,10 @@ class BaseTrainer:
         self.ds_train = None
         self.ds_val = None
         self.checkpointer = None
-        self.mirrored_strategy = None
 
         self.build()
         self._setup_dataset()
         self._init_from_checkpoints(fail_silent=True)
-
-    def _setup_devices_and_strategy(self):
-        pass
 
     def _wait_and_load_next_checkpoint(self):
         pass
@@ -94,11 +120,9 @@ class BaseTrainer:
     def _setup_dataset(self):
         if self.config.distributed_training:
             assert self.ds_train is not None
-            self.ds_train = self.mirrored_strategy.experimental_distribute_dataset(
-                self.ds_train)
+            self.ds_train = self.mirrored_strategy.experimental_distribute_dataset(self.ds_train)
             if self.ds_val:
-                self.ds_val = self.mirrored_strategy.experimental_distribute_dataset(
-                    self.ds_val)
+                self.ds_val = self.mirrored_strategy.experimental_distribute_dataset(self.ds_val)
 
         if self.config.run_eval_every > 0:
             # Epoch does not use full dataset. Cache iter so that we don't restart.
@@ -118,7 +142,7 @@ class BaseTrainer:
 
     def _run_tf_graph(self, graph_fn, *args):
         if self.config.distributed_training:
-            return self.mirrored_strategy.run(graph_fn, *args)
+            return self.mirrored_strategy.run(graph_fn, args)
         return graph_fn(*args)
 
     def build(self):
@@ -132,8 +156,7 @@ class BaseTrainer:
             # An epoch is defined by number of train iterations.
             logging.info('Running max %s iters for train',
                          self.config.run_eval_every)
-            ds_iter = itertools.islice(
-                self.ds_train_iter, 0, self.config.run_eval_every)
+            ds_iter = itertools.islice(self.ds_train_iter, 0, self.config.run_eval_every)
 
         for i, data in enumerate(ds_iter):
             logging.info('train/%s', i)
@@ -152,7 +175,7 @@ class BaseTrainer:
     def train_step(self, _):
         raise NotImplementedError()
 
-    def train_step_end(self, result):
+    def train_step_end(self, *args):
         pass
 
     def _eval(self):

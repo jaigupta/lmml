@@ -38,28 +38,30 @@ class Trainer(BaseTrainer):
         self.backbone = backbone
         self.output_dir = output_dir
         logging.info('Using image size: %s', self.image_size)
-        physical_devices = tf.config.experimental.list_physical_devices('GPU')
-        for physical_device in physical_devices:
-            tf.config.experimental.set_memory_growth(physical_device, True)
+        for d in tf.config.experimental.list_physical_devices('GPU'):
+            tf.config.experimental.set_memory_growth(d, True)
 
     def build(self):
-        self.backbone_model = get_backbone_model(self.backbone)
-        self.model = image_classifier(self.num_classes, self.backbone_model)
-        self.checkpointer = tf.train.Checkpoint(
-            model=self.model, backbone_model=self.backbone_model, total_steps=self.total_steps, epoch=self.epoch)
-
         self.ds_train = dataset.load_dataset(
             self.dataset, 'train', self.config.train_batch_size, self.image_size)
         self.ds_val = dataset.load_dataset(
             self.dataset, 'validation', self.config.val_batch_size, self.image_size)
 
-        self.optimizer = keras.optimizers.Adam(lr=self.config.learning_rate)
-        self.loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        with self.mirrored_strategy.scope():
+            self.backbone_model = get_backbone_model(self.backbone)
+            self.model = image_classifier(self.num_classes, self.backbone_model)
+            self.optimizer = keras.optimizers.Adam(lr=self.config.learning_rate)
+            self.loss_fn = keras.losses.SparseCategoricalCrossentropy(
+                from_logits=True, reduction=tf.keras.losses.Reduction.NONE)
 
-        self.avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
-        self.avg_val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
-        self.accuracy = tf.keras.metrics.Accuracy()
-        self.val_accuracy = tf.keras.metrics.Accuracy()
+            self.avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
+            self.avg_val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+            self.accuracy = tf.keras.metrics.Accuracy()
+            self.val_accuracy = tf.keras.metrics.Accuracy()
+
+        self.checkpointer = tf.train.Checkpoint(
+            model=self.model, backbone_model=self.backbone_model,
+            total_steps=self.total_steps, epoch=self.epoch)
 
     @tf.function
     def train_step(self, batch):
@@ -87,7 +89,7 @@ class Trainer(BaseTrainer):
         images, labels = batch
         output_logits = self.model(images)
         regularization_loss = tf.reduce_sum(self.model.losses)
-        pred_loss = self.loss_fn(labels, output_logits)
+        pred_loss = tf.reduce_mean(self.loss_fn(labels, output_logits)) / len(self.devices)
         total_loss = pred_loss + regularization_loss
         self.avg_val_loss.update_state(total_loss)
         predicted_class = tf.argmax(output_logits, axis=-1)
