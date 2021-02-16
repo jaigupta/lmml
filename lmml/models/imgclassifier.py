@@ -27,5 +27,5 @@ def image_classifier(num_classes, backbone_model):
     x = AveragePooling2D(pool_size=(8,8))(x)
     x = tf.squeeze(x, axis=[1, 2])
     x = logits = Dense(num_classes)(x)
-    return tf.keras.Model(inputs, (logits,), name='classifier')
+    return tf.keras.Model(inputs, logits, name='classifier')
 

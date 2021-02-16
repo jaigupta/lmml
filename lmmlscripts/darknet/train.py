@@ -54,10 +54,12 @@ class Trainer(BaseTrainer):
             self.dataset, 'validation', self.config.val_batch_size, self.image_size)
 
         self.optimizer = keras.optimizers.Adam(lr=self.config.learning_rate)
-        self.loss_fn = keras.losses.SparseCategoricalCrossentropy(
-            from_logits=True)
+        self.loss_fn = keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+
         self.avg_loss = tf.keras.metrics.Mean('loss', dtype=tf.float32)
         self.avg_val_loss = tf.keras.metrics.Mean('val_loss', dtype=tf.float32)
+        self.accuracy = tf.keras.metrics.Accuracy()
+        self.val_accuracy = tf.keras.metrics.Accuracy()
 
     @tf.function
     def train_step(self, batch):
@@ -72,14 +74,13 @@ class Trainer(BaseTrainer):
         self.optimizer.apply_gradients(
             zip(grads, self.model.trainable_variables))
         self.avg_loss.update_state(total_loss)
+        predicted_class = tf.argmax(output_logits, axis=-1)
+        self.accuracy.update_state(
+            tf.expand_dims(predicted_class, axis=-1), tf.expand_dims(labels, axis=-1))
 
-        return total_loss, pred_loss
-
-    def train_step_end(self, result):
-        total_loss, pred_loss = result
+    def train_step_end(self):
+        tf.summary.scalar('accuracy', self.accuracy.result(), self.total_steps)
         tf.summary.scalar('avg_loss', self.avg_loss.result(), self.total_steps)
-        tf.summary.scalar('total_loss', total_loss, self.total_steps)
-        tf.summary.scalar('pred_loss', pred_loss, self.total_steps)
 
     @tf.function
     def eval_step(self, batch):
@@ -89,18 +90,19 @@ class Trainer(BaseTrainer):
         pred_loss = self.loss_fn(labels, output_logits)
         total_loss = pred_loss + regularization_loss
         self.avg_val_loss.update_state(total_loss)
+        predicted_class = tf.argmax(output_logits, axis=-1)
+        self.val_accuracy.update_state(
+            tf.expand_dims(predicted_class, axis=-1), tf.expand_dims(labels, axis=-1))
         return total_loss, pred_loss
 
     def eval_end(self):
-        logging.info("{}, train: {}, val: {}".format(
-            self.epoch.numpy(),
-            self.avg_loss.result().numpy(),
-            self.avg_val_loss.result().numpy()))
-        tf.summary.scalar(
-            'avg_loss', self.avg_val_loss.result(), self.total_steps)
+        tf.summary.scalar('avg_loss', self.avg_val_loss.result(), self.total_steps)
+        tf.summary.scalar('accuracy', self.val_accuracy.result(), self.total_steps)
 
         self.avg_loss.reset_states()
         self.avg_val_loss.reset_states()
+        self.accuracy.reset_states()
+        self.val_accuracy.reset_states()
 
         tf.saved_model.save(self.backbone_model, os.path.join(
             self.output_dir, 'saved_model/backbone'))

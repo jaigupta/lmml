@@ -141,8 +141,9 @@ class BaseTrainer:
             self.train_step_start()
 
             result = self._run_tf_graph(self.train_step, data)
+            result = () if result is None else result
+            self.train_step_end(*result)
 
-            self.train_step_end(result)
             self.train_writer.flush()
 
     def train_step_start(self):
