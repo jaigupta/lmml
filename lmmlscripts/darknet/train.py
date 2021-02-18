@@ -60,6 +60,7 @@ class Trainer(BaseTrainer):
 
         self.checkpointer = tf.train.Checkpoint(
             model=self.model, backbone_model=self.backbone_model,
+            optimizer=self.optimizer,
             total_steps=self.total_steps, epoch=self.epoch)
 
     @tf.function
