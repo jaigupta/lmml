@@ -188,8 +188,10 @@ class BaseTrainer:
                          self.config.run_eval_every)
             ds_iter = itertools.islice(self.ds_train_iter, 0, self.config.run_eval_every)
 
-        for i, data in enumerate(ds_iter):
-            logging.info('train/%s', i)
+        for data in ds_iter:
+            step = self.total_steps.numpy()
+            if step < 100 or step % 100 == 0:
+                logging.info('train/%s/%s', self.epoch.numpy(), self.total_steps.numpy())
             self.total_steps.assign_add(1)
             self.train_step_start()
 
@@ -226,6 +228,7 @@ class BaseTrainer:
             ds_iter = itertools.islice(
                 self.ds_train_iter, 0, self.config.run_eval_every)
 
+        logging.info('Eval/%s', self.epoch.numpy())
         self.eval_start()
 
         for data in ds_iter:

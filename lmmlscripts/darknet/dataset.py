@@ -13,4 +13,4 @@ def mapper(example, image_size):
 
 def load_dataset(ds_type: str, split: str, batch_size: int, image_size: int) -> tf.data.Dataset:
     ds = dataset.load_dataset(ds_type, split)
-    return ds.map(lambda example: mapper(example, image_size), num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(8)
+    return ds.repeat().map(lambda example: mapper(example, image_size), num_parallel_calls=tf.data.AUTOTUNE).batch(batch_size).prefetch(8)
