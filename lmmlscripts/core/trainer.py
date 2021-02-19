@@ -249,10 +249,10 @@ class BaseTrainer:
         assert self.ds_val is not None
 
         if self.config.run_eval_every <= 0:
-            ds_iter = iter(self.ds_train)
+            ds_iter = iter(self.ds_val)
         else:
             ds_iter = itertools.islice(
-                self.ds_train_iter, 0, self.config.run_eval_every)
+                self.ds_val_iter, 0, self.config.eval_iters)
 
         logging.info('Eval/%s', self.epoch.numpy())
         self.eval_start()
