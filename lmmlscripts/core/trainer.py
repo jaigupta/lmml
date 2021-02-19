@@ -6,6 +6,7 @@ from typing import List
 
 from absl import logging
 import gin
+import gin.tf.external_configurables
 import tensorflow as tf
 
 from lmmlscripts.core import files
@@ -70,7 +71,15 @@ def _validate_checkpointer(checkpointer: tf.train.Checkpoint):
         logging.warn('No keras model in checkpointer.')
     if not any(_check_has_obj(o, tf.keras.optimizers.Optimizer) for o in objs.items()):
         logging.warn('No keras optimizer in checkpointer.')
-    
+
+def _save_gin_config(output_dir: str):
+    # Replace \n with \n\n to improve logging.
+    gin_config = gin.operative_config_str().replace('\n', '\n\n')
+    logging.info('gin config: %s', gin_config)
+    tf.summary.text('gin_config', gin_config, 0)
+    with tf.io.gfile.GFile(os.path.join(output_dir, 'gin_config.txt'), 'w') as f:
+        f.write(gin_config)
+
 
 @gin.configurable
 @attr.s
@@ -126,10 +135,8 @@ class BaseTrainer:
         if 'train' in self.config.modes:
             self.train_writer = self._create_summary_writer('train')
             with self.train_writer.as_default():
-                # Replace \n with \n\n to improve logging.
-                gin_config = gin.operative_config_str().replace('\n', '\n\n')
-                logging.info('gin config: %s', gin_config)
-                tf.summary.text('gin_config', gin_config, 0)
+                _save_gin_config(self.output_dir)
+
         if 'eval' in self.config.modes:
             self.eval_writer = self._create_summary_writer('eval')
         if 'dev_eval' in self.config.modes:

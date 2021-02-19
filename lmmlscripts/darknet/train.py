@@ -22,6 +22,7 @@ from lmmlscripts.core.trainer import BaseTrainer, BaseTrainerConfig
 from lmmlscripts.darknet import dataset
 
 flags.DEFINE_multi_string('gin_param', None, 'Repeated Gin parameter bindings.')
+flags.DEFINE_string('model_config', 'base', 'Repeated Gin parameter bindings.')
 
 
 @gin.configurable
@@ -114,7 +115,9 @@ class Trainer(BaseTrainer):
 
 
 def main(_argv):
-    gin.parse_config_files_and_bindings(['lmmlscripts/gin/darknet.gin'], flags.FLAGS.gin_param)
+    gin.parse_config_files_and_bindings(
+        [f'lmmlscripts/gin/darknet/{flags.FLAGS.model_config}.gin'],
+        flags.FLAGS.gin_param)
     config = BaseTrainerConfig()
     t = Trainer(config)
     t.start()

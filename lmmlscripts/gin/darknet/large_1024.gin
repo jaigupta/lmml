@@ -1,0 +1,4 @@
+import 'lmmlscripts/gin/darknet/base.gin'
+
+Trainer.image_size = 416
+darknet.dataset.mapper.img_resize_fn = 'resize_with_pad'

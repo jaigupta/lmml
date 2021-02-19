@@ -1,0 +1,11 @@
+Trainer.dataset = 'tfds://imagenet2012'
+Trainer.backbone = 'darknet'
+Trainer.image_size = 416
+Trainer.num_classes = 1000
+Trainer.output_dir = './output'
+darknet.dataset.mapper.img_resize_fn = 'resize'
+BaseTrainerConfig.num_epochs = 10
+BaseTrainerConfig.run_eval_every = 10000
+BaseTrainerConfig.eval_iters = 1000
+BaseTrainerConfig.distributed_training = True
+BaseTrainerConfig.modes = ('train',)
