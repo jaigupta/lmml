@@ -55,6 +55,21 @@ def _setup_devices_and_strategy(distributed_training: bool):
     if tpu_strategy:
         return devices, tpu_strategy
     return devices, tf.distribute.MirroredStrategy(devices=devices) if distributed_training else DummyStrategy()
+
+def _check_has_obj(o, expected_type):
+    if isinstance(o, tuple) or isinstance(o, list):
+        return any(_check_has_obj(oi, expected_type) for oi in o)
+    return isinstance(o, expected_type)
+    
+def _validate_checkpointer(checkpointer: tf.train.Checkpoint):
+    assert checkpointer is not None
+    objs = {o.name: o.ref for o in checkpointer._checkpoint_dependencies}
+    assert 'epoch' in objs
+    assert 'total_steps' in objs
+    if not any(_check_has_obj(o, tf.keras.Model) for o in objs.items()):
+        logging.warn('No keras model in checkpointer.')
+    if not any(_check_has_obj(o, tf.keras.optimizers.Optimizer) for o in objs.items()):
+        logging.warn('No keras optimizer in checkpointer.')
     
 
 @gin.configurable
@@ -68,6 +83,7 @@ class BaseTrainerConfig:
     distributed_training: bool = attr.ib(default=False)
     modes: List[str] = attr.ib(default=('train', 'eval'))
     learning_rate: float = attr.ib(default=1e-3)
+    initialization_checkpoint: str = attr.ib(default=None)
 
 class BaseTrainer:
     def __init__(self, config: BaseTrainerConfig):
@@ -125,11 +141,14 @@ class BaseTrainer:
         self.checkpointer = None
 
         self.build()
+        _validate_checkpointer(self.checkpointer)
         self._setup_dataset()
         if 'train' in self.config.modes:
             # evals load later, in _wait_and_load_next_checkpoint.
             # Hence, loading only for 'train' mode.
-            self._init_from_checkpoints(fail_silent=True)
+            self._init_from_checkpoints(
+                initialization_path=self.config.initialization_checkpoint,
+                fail_silent=self.config.initialization_checkpoint is None)
 
     def _wait_and_load_next_checkpoint(self):
         cur_total_steps = self.total_steps.numpy()
@@ -163,13 +182,19 @@ class BaseTrainer:
         if self.ds_val and self.config.eval_iters > 0:
             self.ds_val_iter = iter(self.ds_val)
 
-    def _init_from_checkpoints(self, fail_silent=False):
-        checkpoint_path = tf.train.latest_checkpoint(self.checkpoints_path)
+    def _init_from_checkpoints(self, initialization_path=None, fail_silent=False):
+        if initialization_path:
+            checkpoint_path = (
+                tf.train.latest_checkpoint(initialization_path)
+                if tf.io.gfile.isdir(initialization_path) else initialization_path)
+        else:
+            checkpoint_path = tf.train.latest_checkpoint(self.checkpoints_path)
         if not checkpoint_path:
             if fail_silent:
                 return
             raise FileNotFoundError('Checkpoint not found.')
-        self.checkpointer.restore(checkpoint_path)
+        with self.mirrored_strategy.scope():
+            self.checkpointer.restore(checkpoint_path)
 
     def _run_tf_graph(self, graph_fn, *args):
         if self.config.distributed_training:
