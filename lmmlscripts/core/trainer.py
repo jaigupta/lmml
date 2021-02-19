@@ -112,6 +112,7 @@ class BaseTrainer:
             with self.train_writer.as_default():
                 # Replace \n with \n\n to improve logging.
                 gin_config = gin.operative_config_str().replace('\n', '\n\n')
+                logging.info('gin config: %s', gin_config)
                 tf.summary.text('gin_config', gin_config, 0)
         if 'eval' in self.config.modes:
             self.eval_writer = self._create_summary_writer('eval')
