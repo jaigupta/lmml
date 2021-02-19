@@ -42,9 +42,9 @@ class Trainer(BaseTrainer):
 
     def build(self):
         self.ds_train = dataset.load_dataset(
-            self.dataset, 'train', self.config.train_batch_size, self.image_size).repeat()
+            self.dataset, 'train', self.config.train_batch_size, self.image_size)
         self.ds_val = dataset.load_dataset(
-            self.dataset, 'validation', self.config.val_batch_size, self.image_size).repeat()
+            self.dataset, 'validation', self.config.val_batch_size, self.image_size)
 
         with self.mirrored_strategy.scope():
             self.backbone_model = get_backbone_model(self.backbone)
