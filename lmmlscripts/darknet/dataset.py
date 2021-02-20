@@ -5,7 +5,7 @@ import tensorflow as tf
 from lmmlscripts.core import dataset
 
 @gin.configurable
-def mapper(example, image_size, img_resize_fn):
+def mapper(example, image_size, img_resize_fn=gin.REQUIRED):
     image = example['image']
     if img_resize_fn == 'resize':
         image = tf.image.resize(image, (image_size, image_size))

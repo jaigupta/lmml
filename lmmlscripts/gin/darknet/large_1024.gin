@@ -1,4 +1,5 @@
-import 'lmmlscripts/gin/darknet/base.gin'
+include 'lmmlscripts/gin/darknet/base.gin'
 
-Trainer.image_size = 416
+Trainer.image_size = 1024
 darknet.dataset.mapper.img_resize_fn = 'resize_with_pad'
+image_classifier.avg_pool_shape = (32, 32)
