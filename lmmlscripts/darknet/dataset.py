@@ -5,7 +5,7 @@ import tensorflow as tf
 from lmmlscripts.core import dataset
 
 @gin.configurable
-def mapper(example, image_size, img_resize_fn=gin.REQUIRED):
+def mapper(example, image_size: int, img_resize_fn=gin.REQUIRED):
     image = example['image']
     if img_resize_fn == 'resize':
         image = tf.image.resize(image, (image_size, image_size))
@@ -23,4 +23,4 @@ def load_dataset(ds_type: str, split: str, batch_size: int, image_size: int) -> 
     return ds.repeat().map(
         lambda example: mapper(example, image_size),
         num_parallel_calls=tf.data.AUTOTUNE
-    ).batch(batch_size).prefetch(8)
+    ).batch(batch_size).prefetch(tf.data.AUTOTUNE)

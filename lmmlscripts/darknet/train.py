@@ -28,15 +28,14 @@ flags.DEFINE_string('model_config', 'base', 'Repeated Gin parameter bindings.')
 @gin.configurable
 class Trainer(BaseTrainer):
     def __init__(
-            self, config,
+            self,
             image_size=gin.REQUIRED, dataset=gin.REQUIRED, num_classes=gin.REQUIRED,
             backbone=gin.REQUIRED, output_dir=gin.REQUIRED):
-        super().__init__(config)
+        super().__init__(output_dir)
         self.image_size = image_size
         self.dataset = dataset
         self.num_classes = num_classes
         self.backbone = backbone
-        self.output_dir = output_dir
         logging.info('Using image size: %s', self.image_size)
         for d in tf.config.experimental.list_physical_devices('GPU'):
             tf.config.experimental.set_memory_growth(d, True)
@@ -118,8 +117,7 @@ def main(_argv):
     gin.parse_config_files_and_bindings(
         [f'lmmlscripts/gin/darknet/{flags.FLAGS.model_config}.gin'],
         flags.FLAGS.gin_param)
-    config = BaseTrainerConfig()
-    t = Trainer(config)
+    t = Trainer()
     t.start()
 
 

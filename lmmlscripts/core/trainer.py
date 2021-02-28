@@ -94,10 +94,11 @@ class BaseTrainerConfig:
     learning_rate: float = attr.ib(default=1e-3)
     initialization_checkpoint: str = attr.ib(default=None)
 
+
 class BaseTrainer:
-    def __init__(self, config: BaseTrainerConfig):
-        self.config = config
-        self.output_dir: str = None
+    def __init__(self, output_dir:str):
+        self.config = BaseTrainerConfig()
+        self.output_dir = output_dir
 
     def start(self):
         files.ensure_dirs_exist([
@@ -229,8 +230,7 @@ class BaseTrainer:
             self.train_step_start()
 
             result = self._run_tf_graph(self.train_step, data)
-            result = () if result is None else result
-            self.train_step_end(*result)
+            self.train_step_end(*(result or ()))
 
             self.train_writer.flush()
 

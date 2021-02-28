@@ -1,5 +1,7 @@
 """YOLO V3 implementation: Source github zzh8829/yolov3-tf2"""
 
+from typing import Tuple, Any
+
 from absl import flags
 from absl.flags import FLAGS
 from absl import logging
@@ -27,6 +29,7 @@ from tensorflow.keras.losses import (
 from lmml.models.darknet import (
     Darknet,
     DarknetConv,
+    DarknetTiny,
 )
 
 
@@ -281,23 +284,26 @@ def yolo_nms(outputs, anchors, masks, classes):
     return boxes, scores, classes, valid_detections
 
 
-def YoloV3(size=None, channels=3, anchors=yolo_anchors,
+def YoloV3(feature_shapes: Tuple[Any, Any, Any], channels=3, anchors=yolo_anchors,
            masks=yolo_anchor_masks, classes=80, training=False):
-    x = inputs = Input([size, size, channels], name='input')
+    f_36_shape, f_61_shape, f_shape = feature_shapes
+    f_36, f_61, f = (
+        Input(f_36_shape, name='f_36'),
+        Input(f_61_shape, name='f_61'),
+        Input(f_shape, name='f')
+    )
 
-    x_36, x_61, x = Darknet(name='yolo_darknet')(x)
-
-    x = YoloConv(512, name='yolo_conv_0')(x)
+    x = YoloConv(512, name='yolo_conv_0')(f)
     output_0 = YoloOutput(512, len(masks[0]), classes, name='yolo_output_0')(x)
 
-    x = YoloConv(256, name='yolo_conv_1')((x, x_61))
+    x = YoloConv(256, name='yolo_conv_1')((x, f_61))
     output_1 = YoloOutput(256, len(masks[1]), classes, name='yolo_output_1')(x)
 
-    x = YoloConv(128, name='yolo_conv_2')((x, x_36))
+    x = YoloConv(128, name='yolo_conv_2')((x, f_36))
     output_2 = YoloOutput(128, len(masks[2]), classes, name='yolo_output_2')(x)
 
     if training:
-        return Model(inputs, (output_0, output_1, output_2), name='yolov3')
+        return Model((f_36, f_61, f), (output_0, output_1, output_2), name='yolov3')
 
     boxes_0 = Lambda(lambda x: yolo_boxes(x, anchors[masks[0]], classes),
                      name='yolo_boxes_0')(output_0)
@@ -309,14 +315,14 @@ def YoloV3(size=None, channels=3, anchors=yolo_anchors,
     outputs = Lambda(lambda x: yolo_nms(x, anchors, masks, classes),
                      name='yolo_nms')((boxes_0[:3], boxes_1[:3], boxes_2[:3]))
 
-    return Model(inputs, outputs, name='yolov3')
+    return Model((f_36, f_61, f), outputs, name='yolov3')
 
 
-def YoloV3Tiny(size=None, channels=3, anchors=yolo_tiny_anchors,
+def YoloV3Tiny(size, backbone_model, channels=3, anchors=yolo_tiny_anchors,
                masks=yolo_tiny_anchor_masks, classes=80, training=False):
     x = inputs = Input([size, size, channels], name='input')
 
-    x_8, x = DarknetTiny(name='yolo_darknet')(x)
+    x_8, x = backbone_model(x)
 
     x = YoloConvTiny(256, name='yolo_conv_0')(x)
     output_0 = YoloOutput(256, len(masks[0]), classes, name='yolo_output_0')(x)

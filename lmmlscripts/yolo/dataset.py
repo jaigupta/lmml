@@ -1,7 +1,10 @@
-import tensorflow as tf
 from absl.flags import FLAGS
+import gin
+import tensorflow as tf
 
-@tf.function
+from lmmlscripts.core import dataset
+
+
 def transform_targets_for_output(y_true, grid_size, anchor_idxs):
     # y_true: (N, boxes, (x1, y1, x2, y2, class, best_anchor))
     N = tf.shape(y_true)[0]
@@ -12,8 +15,8 @@ def transform_targets_for_output(y_true, grid_size, anchor_idxs):
 
     anchor_idxs = tf.cast(anchor_idxs, tf.int32)
 
-    indexes = tf.TensorArray(tf.int32, 1, dynamic_size=True)
-    updates = tf.TensorArray(tf.float32, 1, dynamic_size=True)
+    indexes = tf.TensorArray(tf.int32, 0, dynamic_size=True)
+    updates = tf.TensorArray(tf.float32, 0, dynamic_size=True)
     idx = 0
     for i in tf.range(N):
         for j in tf.range(tf.shape(y_true)[1]):
@@ -39,8 +42,10 @@ def transform_targets_for_output(y_true, grid_size, anchor_idxs):
     # tf.print(indexes.stack())
     # tf.print(updates.stack())
 
-    return tf.tensor_scatter_nd_update(
-        y_true_out, indexes.stack(), updates.stack())
+
+    if indexes.size() != 0:
+        y_true_out = tf.tensor_scatter_nd_update(y_true_out, indexes.stack(), updates.stack())
+    return y_true_out
 
 
 def transform_targets(y_train, anchors, anchor_masks, size):
@@ -60,7 +65,7 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     anchor_idx = tf.cast(tf.argmax(iou, axis=-1), tf.float32)
     anchor_idx = tf.expand_dims(anchor_idx, axis=-1)
 
-    y_train = tf.concat([y_train, anchor_idx], axis=-1)
+    y_train = tf.concat([y_train, anchor_idx], axis=-1)  # pylint: disable=no-value-for-parameter, unexpected-keyword-arg
 
     for anchor_idxs in anchor_masks:
         y_outs.append(transform_targets_for_output(
@@ -70,25 +75,23 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     return tuple(y_outs)
 
 
-def load_tfds_voc_dataset(ds_type, split, batch_size, image_size):
-    import tensorflow_datasets as tfds
-    ds = tfds.load(ds_type, split=split, shuffle_files=True)
-    
-    def mapper(example):
-        image = example['image']
-        image = tf.image.resize(image, (image_size, image_size)) / 255.
-        h, w, _ = image.shape
-        labels = example['objects']['label']
-        labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
-        bboxes = example['objects']['bbox']
-        res = tf.concat([bboxes, labels], axis=-1)
-        return image, tf.sparse.from_dense(res)
-    
-    return ds.map(mapper).batch(batch_size).map(lambda x, y: (x, tf.sparse.to_dense(y)))
+@gin.configurable
+def mapper(example, image_size):
+    image = example['image']
+    image = tf.image.resize(image, (image_size, image_size)) / 255.
+    labels = example['objects']['label']
+    labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
+    bboxes = example['objects']['bbox']
+    res = tf.concat([bboxes, labels], axis=-1)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
+    return image, tf.sparse.from_dense(res)
 
 
-def load_dataset(ds_type, split, batch_size, image_size):
-    if ds_type in ('voc/2007', 'voc/2012', 'coco/2014', 'coco/2017'):
-        return load_tfds_voc_dataset(ds_type, split, batch_size, image_size)
+def load_dataset(ds_type, split: str, batch_size: int, image_size: int):
+    ds = dataset.load_dataset(ds_type, split)
+    if not ds:
+        raise ValueError(f'Dataset {ds_type} not handled.')
 
-    raise ValueError(f'Dataset {ds_type} not handled.')
+    return ds.map(lambda example: mapper(example, image_size)
+    ).batch(batch_size
+    ).map(lambda x, y: (x, tf.sparse.to_dense(y))
+    ).prefetch(tf.data.AUTOTUNE)
