@@ -5,7 +5,6 @@ from typing import Tuple, Any
 from absl import flags
 from absl.flags import FLAGS
 from absl import logging
-import cv2
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
@@ -135,6 +134,7 @@ def broadcast_iou(box_1, box_2):
 
 
 def draw_outputs(img, outputs, class_names):
+    import cv2
     boxes, objectness, classes, nums = outputs
     boxes, objectness, classes, nums = boxes[0], objectness[0], classes[0], nums[0]
     wh = np.flip(img.shape[0:2])
@@ -149,6 +149,7 @@ def draw_outputs(img, outputs, class_names):
 
 
 def draw_labels(x, y, class_names):
+    import cv2
     img = x.numpy()
     boxes, classes = tf.split(y, (4, 1), axis=-1)
     classes = classes[..., 0]

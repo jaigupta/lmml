@@ -1,4 +1,4 @@
-yolo.dataset.mapper.image_size = 416
+lmmlscripts.yolo.dataset.load_dataset.image_size = 416
 # yolo.dataset.mapper.img_resize_fn = 'resize'
 
 BaseTrainerConfig.num_epochs = 10
@@ -9,6 +9,6 @@ BaseTrainerConfig.modes = ('train',)
 
 Trainer.backbone_path = './output/saved_model/backbone'
 Trainer.image_size = 416
-Trainer.dataset = 'tfds://voc/2007'
+Trainer.dataset = 'tfds://coco/2017'
 Trainer.num_classes = 20
 Trainer.output_dir = './output_yolo'

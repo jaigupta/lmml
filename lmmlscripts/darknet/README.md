@@ -1,0 +1,11 @@
+# Configs
+- base:train/gpu
+    - gpu: 8 x v100
+    - cpu: 3
+    - memory: 32
+    - eval_every: 10k
+    - eval_iters: 1k
+- base:eval/gpu
+    - gpu: 2 x t4
+    - cpu: 3
+    - memory: 32

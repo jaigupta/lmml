@@ -75,8 +75,9 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     return tuple(y_outs)
 
 
-@gin.configurable
-def mapper(example, image_size):
+_VOC_DS_PREFIXES = ('tfds://coco/', 'tfds://voc/')
+
+def voc_mapper(example, image_size):
     image = example['image']
     image = tf.image.resize(image, (image_size, image_size)) / 255.
     labels = example['objects']['label']
@@ -86,12 +87,35 @@ def mapper(example, image_size):
     return image, tf.sparse.from_dense(res)
 
 
-def load_dataset(ds_type, split: str, batch_size: int, image_size: int):
+def waymo_mapper(example, image_size):
+    output_images, output_labels = [], []
+    for tp in ('camera_FRONT', 'camera_FRONT_LEFT', 'camera_FRONT_RIGHT', 'camera_SIDE_LEFT', 'camera_SIDE_RIGHT'):
+        image = example[tp]['image']
+        image = tf.image.resize(image, (image_size, image_size)) / 255.
+        output_images.append(image)
+        labels = example[tp]['labels']['type']
+        labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
+        bboxes = example[tp]['labels']['bbox']
+        res = tf.concat([bboxes, labels], axis=-1)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
+        output_labels.append(res)
+    return tf.stack(output_images, axis=0), tf.stack(tf.sparse.from_dense(res), axis=0)
+    
+
+@gin.configurable
+def load_dataset(ds_type, split: str, batch_size: int, image_size: int=gin.REQUIRED):
     ds = dataset.load_dataset(ds_type, split)
     if not ds:
         raise ValueError(f'Dataset {ds_type} not handled.')
 
-    return ds.map(lambda example: mapper(example, image_size)
-    ).batch(batch_size
-    ).map(lambda x, y: (x, tf.sparse.to_dense(y))
-    ).prefetch(tf.data.AUTOTUNE)
+    if any(ds_type.startswith(prefix) for prefix in _VOC_DS_PREFIXES):
+        ds = ds.map(lambda example: voc_mapper(example, image_size))
+    elif ds_type.startswith():
+        ds = ds.map(lambda example: waymo_mapper(example, image_size)).unbatch()
+    else:
+        raise ValueError('Mapper missing for dataset: ' + ds_type)
+
+    return (
+        ds
+        .batch(batch_size)
+        .map(lambda x, y: (x, tf.sparse.to_dense(y)))
+        .prefetch(tf.data.AUTOTUNE))
