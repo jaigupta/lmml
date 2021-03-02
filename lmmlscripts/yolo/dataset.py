@@ -126,7 +126,7 @@ def create_waymo_dataset(ds_type, split, image_size):
     ds = None
     for key in _KEYS:
         new_ds = create_waymo_ds_for_key(ds_type, split, image_size, key)
-        ds = new_ds if ds is None else ds.concat(new_ds)
+        ds = new_ds if ds is None else ds.concatenate(new_ds)
 
     return ds
 
