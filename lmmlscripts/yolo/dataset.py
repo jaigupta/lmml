@@ -79,48 +79,52 @@ def transform_targets(y_train, anchors, anchor_masks, size):
 _VOC_DS_PREFIXES = ('tfds://coco/', 'tfds://voc/')
 
 
-def voc_mapper(example, image_size):
-    image = example['image']
-    image = tf.image.resize(image, (image_size, image_size)) / 255.
-    labels = example['objects']['label']
-    labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
-    bboxes = example['objects']['bbox']
-    res = tf.concat([bboxes, labels],
-                    axis=-1,)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
-    return image, tf.sparse.from_dense(res)
-
-
-def waymo_mapper(example, image_size, image_key):
-    output_images, output_labels = [], []
-    for tp in ('camera_FRONT', 'camera_FRONT_LEFT', 'camera_FRONT_RIGHT', 'camera_SIDE_LEFT', 'camera_SIDE_RIGHT'):
-        image = example[tp]['image']
+def create_voc_mapper(image_size):
+    def voc_mapper(example):
+        image = example['image']
         image = tf.image.resize(image, (image_size, image_size)) / 255.
-        output_images.append(image)
-
-        labels = example[tp]['labels']['type']
+        labels = example['objects']['label']
         labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
-        bboxes = example[tp]['labels']['bbox']
+        bboxes = example['objects']['bbox']
         res = tf.concat([bboxes, labels],
                         axis=-1,)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
-        output_labels.append(tf.sparse.from_dense(res))
+        return image, tf.sparse.from_dense(res)
+    return voc_mapper
 
-    return output_images[0], output_labels[0]
+
+def create_waymo_mapper(image_size, image_key):
+    def waymo_mapper(example):
+        ex = example[image_key]
+        image = ex['image']
+        image = tf.image.resize(image, (image_size, image_size)) / 255.
+
+        labels = ex['labels']['type']
+        labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
+        bboxes = ex['labels']['bbox']
+        res = tf.concat([bboxes, labels],
+                        axis=-1,)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
+
+        return ex, tf.sparse.from_dense(res)
+
+    return waymo_mapper
 
 
 def create_waymo_ds_for_key(ds_type, split, image_size, image_key):
     return (
         dataset
         .load_dataset(ds_type, split)
-        .map(lambda example: waymo_mapper(example, image_size, image_key)))
+        .map(create_waymo_mapper(image_size, image_key)))
 
 
 def create_waymo_dataset(ds_type, split, image_size):
     _KEYS = ('camera_FRONT', 'camera_FRONT_LEFT', 'camera_FRONT_RIGHT',
              'camera_SIDE_LEFT', 'camera_SIDE_RIGHT')
-    return (
-        tf.data.Dataset
-        .from_tensor_slices(_KEYS)
-        .interleave(lambda imkey: create_waymo_ds_for_key(ds_type, split, image_size, imkey)))
+    ds = None
+    for key in _KEYS:
+        new_ds = create_waymo_ds_for_key(ds_type, split, image_size, key)
+        ds = new_ds if ds is None else ds.concat(new_ds)
+
+    return ds
 
 
 @gin.configurable
@@ -133,7 +137,7 @@ def load_dataset(ds_type, split: str, batch_size: int, image_size: int = gin.REQ
             raise ValueError(f'Dataset {ds_type} not handled.')
 
         if any(ds_type.startswith(prefix) for prefix in _VOC_DS_PREFIXES):
-            ds = ds.map(lambda example: voc_mapper(example, image_size))
+            ds = ds.map(create_voc_mapper(image_size))
         else:
             raise ValueError('Mapper missing for dataset: ' + ds_type)
 
