@@ -80,6 +80,8 @@ _VOC_DS_PREFIXES = ('tfds://coco/', 'tfds://voc/')
 
 
 def create_voc_mapper(image_size):
+
+    @tf.function
     def voc_mapper(example):
         image = example['image']
         image = tf.image.resize(image, (image_size, image_size)) / 255.
@@ -93,6 +95,8 @@ def create_voc_mapper(image_size):
 
 
 def create_waymo_mapper(image_size, image_key):
+
+    @tf.function
     def waymo_mapper(example):
         ex = example[image_key]
         image = ex['image']
@@ -101,8 +105,8 @@ def create_waymo_mapper(image_size, image_key):
         labels = ex['labels']['type']
         labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
         bboxes = ex['labels']['bbox']
-        res = tf.concat([bboxes, labels],
-                        axis=-1,)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
+        res = tf.concat(
+            [bboxes, labels], axis=-1)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
 
         return ex, tf.sparse.from_dense(res)
 

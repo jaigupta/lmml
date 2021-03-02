@@ -94,12 +94,15 @@ class Trainer(trainer.BaseTrainer):
         return total_loss, tuple(tf.reduce_mean(l) for l in pred_loss)
 
     def train_step_end(self, total_loss, pred_loss):
+        def replica_avg(vals):
+            return self.mirrored_strategy.reduce(tf.distribute.ReduceOp.MEAN, vals, axis=None)
+
         tf.summary.scalar('epoch', self.epoch, self.total_steps)
         tf.summary.scalar('loss/avg', self.avg_loss.result(), self.total_steps)
-        tf.summary.scalar('loss/total', total_loss, self.total_steps)
-        tf.summary.scalar('loss/pred0', pred_loss[0], self.total_steps)
-        tf.summary.scalar('loss/pred1', pred_loss[1], self.total_steps)
-        tf.summary.scalar('loss/pred2', pred_loss[2], self.total_steps)
+        tf.summary.scalar('loss/total', replica_avg(total_loss), self.total_steps)
+        tf.summary.scalar('loss/pred0', replica_avg(pred_loss[0]), self.total_steps)
+        tf.summary.scalar('loss/pred1', replica_avg(pred_loss[1]), self.total_steps)
+        tf.summary.scalar('loss/pred2', replica_avg(pred_loss[2]), self.total_steps)
 
     @tf.function
     def eval_step(self, batch):
@@ -127,6 +130,7 @@ def main(_argv):
     gin.parse_config_files_and_bindings(
         [f'lmmlscripts/gin/yolo/{flags.FLAGS.model_config}.gin'],
         flags.FLAGS.gin_param)
+
     Trainer().start()
 
 
