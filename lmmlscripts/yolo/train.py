@@ -104,6 +104,9 @@ class Trainer(trainer.BaseTrainer):
         tf.summary.scalar('loss/pred1', replica_avg(pred_loss[1]), self.total_steps)
         tf.summary.scalar('loss/pred2', replica_avg(pred_loss[2]), self.total_steps)
 
+    def train_epoch_end(self):
+        self.avg_loss.reset_states()
+
     @tf.function
     def eval_step(self, batch):
         images, labels = batch
@@ -122,7 +125,6 @@ class Trainer(trainer.BaseTrainer):
     def eval_end(self):
         tf.summary.scalar('loss/avg', self.avg_val_loss.result(), self.total_steps)
 
-        self.avg_loss.reset_states()
         self.avg_val_loss.reset_states()
 
 
