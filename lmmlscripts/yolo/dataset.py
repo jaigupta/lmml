@@ -76,7 +76,7 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     return tuple(y_outs)
 
 
-_VOC_DS_PREFIXES = ('tfds://coco/', 'tfds://voc/')
+_VOC_TFDS = ('coco', 'voc')
 
 
 def create_voc_mapper(image_size):
@@ -133,14 +133,14 @@ def create_waymo_dataset(ds_type, split, image_size):
 
 @gin.configurable
 def load_dataset(ds_type, split: str, batch_size: int, image_size: int = gin.REQUIRED):
-    if ds_type.startswith('tfds://waymo_open_dataset/'):
+    if dataset.is_tfds(ds_type, 'waymo_open_dataset'):
         ds = create_waymo_dataset(ds_type, split, image_size)
     else:
         ds = dataset.load_dataset(ds_type, split)
         if not ds:
             raise ValueError(f'Dataset {ds_type} not handled.')
 
-        if any(ds_type.startswith(prefix) for prefix in _VOC_DS_PREFIXES):
+        if any(dataset.is_tfds(ds_type, voc_tfds) for voc_tfds in _VOC_TFDS):
             ds = ds.map(create_voc_mapper(image_size))
         else:
             raise ValueError('Mapper missing for dataset: ' + ds_type)
