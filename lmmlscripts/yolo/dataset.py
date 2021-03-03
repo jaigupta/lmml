@@ -55,7 +55,6 @@ def transform_targets(y_train, anchors, anchor_masks, size):
     grid_size = size // 32
 
     # calculate anchor index for true boxes
-    anchors = tf.cast(anchors, tf.float32)
     anchor_area = anchors[..., 0] * anchors[..., 1]
     box_wh = y_train[..., 2:4] - y_train[..., 0:2]
     box_wh = tf.tile(tf.expand_dims(box_wh, -2),

@@ -59,7 +59,7 @@ class Trainer(trainer.BaseTrainer):
 
             self.optimizer = tf.keras.optimizers.Adam(lr=self.config.learning_rate)
             self.loss_fns = [
-                YoloLoss(self.anchors[mask], classes=self.num_classes)
+                YoloLoss(tf.gather(self.anchors, mask), classes=self.num_classes)
                 for mask in self.anchor_masks]
 
         self.ds_train = dataset.load_dataset(
