@@ -122,9 +122,9 @@ class Trainer(trainer.BaseTrainer):
     def eval_step(self, batch):
         images, labels = batch
         transformed_labels = dataset.transform_targets(labels, self.anchors, self.anchor_masks, self.image_size)
-        features = self.backbone_model(images)  # TODO: training = False
+        features = self.backbone_model(images)
         f_36, f_61, f = features['add_10'], features['add_18'], features['add_22']
-        outputs = self.model((f_36, f_61, f), training=True)
+        outputs = self.model((f_36, f_61, f), training=False)
         regularization_loss = tf.reduce_sum(self.model.losses)
         pred_loss = []
         for output, label, loss_fn in zip(outputs, transformed_labels, self.loss_fns):

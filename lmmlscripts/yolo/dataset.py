@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from absl.flags import FLAGS
 import gin
 import tensorflow as tf
@@ -97,7 +99,7 @@ def create_voc_mapper(image_size):
 def create_waymo_mapper(image_size, image_key):
 
     @tf.function
-    def waymo_mapper(example):
+    def waymo_mapper(example) -> Tuple[tf.Tensor, tf.sparse.SparseTensor]:
         ex = example[image_key]
         image = ex['image']
         image = tf.image.resize(image, (image_size, image_size)) / 255.
@@ -108,7 +110,7 @@ def create_waymo_mapper(image_size, image_key):
         res = tf.concat(
             [bboxes, labels], axis=-1)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
 
-        return ex, tf.sparse.from_dense(res)
+        return image, tf.sparse.from_dense(res)
 
     return waymo_mapper
 
@@ -147,6 +149,7 @@ def load_dataset(ds_type, split: str, batch_size: int, image_size: int = gin.REQ
 
     return (
         ds
+        .repeat()
         .batch(batch_size)
         .map(lambda x, y: (x, tf.sparse.to_dense(y)))
         .prefetch(tf.data.AUTOTUNE))
