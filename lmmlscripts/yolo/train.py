@@ -1,3 +1,5 @@
+import os
+
 from lmmlscripts.core import trainer
 from lmmlscripts.yolo import dataset
 from lmml.models.yolov3 import (
@@ -6,6 +8,7 @@ from lmml.models.yolov3 import (
     yolo_tiny_anchors, yolo_tiny_anchor_masks,
     freeze_all
 )
+from lmml.core.oop import overrides
 from tensorflow.keras.callbacks import (
     ReduceLROnPlateau,
     EarlyStopping,
@@ -37,6 +40,7 @@ class Trainer(trainer.BaseTrainer):
         self.num_classes = num_classes
         self.dataset = dataset
 
+    @overrides(trainer.BaseTrainer)
     def build(self):
         self.anchors = yolo_anchors
         self.anchor_masks = yolo_anchor_masks
@@ -73,6 +77,7 @@ class Trainer(trainer.BaseTrainer):
             total_steps=self.total_steps,
             epoch=self.epoch)
 
+    @overrides(trainer.BaseTrainer)
     @tf.function
     def train_step(self, batch):
         images, labels = batch
@@ -93,6 +98,7 @@ class Trainer(trainer.BaseTrainer):
         self.avg_loss.update_state(total_loss)
         return total_loss, tuple(tf.reduce_mean(l) for l in pred_loss)
 
+    @overrides(trainer.BaseTrainer)
     def train_step_end(self, total_loss, pred_loss):
         def replica_avg(vals):
             return self.mirrored_strategy.reduce(tf.distribute.ReduceOp.MEAN, vals, axis=None)
@@ -104,9 +110,14 @@ class Trainer(trainer.BaseTrainer):
         tf.summary.scalar('loss/pred1', replica_avg(pred_loss[1]), self.total_steps)
         tf.summary.scalar('loss/pred2', replica_avg(pred_loss[2]), self.total_steps)
 
+    @overrides(trainer.BaseTrainer)
     def train_epoch_end(self):
         self.avg_loss.reset_states()
+        tf.saved_model.save(
+            self.model,
+            os.path.join(self.output_dir, 'saved_model/model'))
 
+    @overrides(trainer.BaseTrainer)
     @tf.function
     def eval_step(self, batch):
         images, labels = batch
@@ -122,6 +133,7 @@ class Trainer(trainer.BaseTrainer):
 
         self.avg_val_loss.update_state(total_loss)
 
+    @overrides(trainer.BaseTrainer)
     def eval_end(self):
         tf.summary.scalar('loss/avg', self.avg_val_loss.result(), self.total_steps)
 
