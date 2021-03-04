@@ -1,7 +1,6 @@
 import os
 
 from lmmlscripts.core import trainer
-# trainer.split_cpu_to_multiple_virtual_devices()
 from lmmlscripts.yolo import dataset
 from lmml.models.yolov3 import (
     YoloV3, YoloV3Tiny, YoloLoss,

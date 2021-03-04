@@ -67,8 +67,7 @@ class Trainer(BaseTrainer):
 
     @overrides(BaseTrainer)
     @tf.function
-    def train_step(self, batch):
-        images, labels = batch
+    def train_step(self, images, labels):
         with tf.GradientTape() as tape:
             output_logits = self.model(images, training=True)
             regularization_loss = tf.reduce_sum(self.model.losses)
@@ -99,8 +98,7 @@ class Trainer(BaseTrainer):
 
     @overrides(BaseTrainer)
     @tf.function
-    def eval_step(self, batch):
-        images, labels = batch
+    def eval_step(self, images, labels):
         output_logits = self.model(images)
         regularization_loss = tf.reduce_sum(self.model.losses)
         pred_loss = tf.reduce_mean(self.loss_fn(labels, output_logits)) / len(self.devices)

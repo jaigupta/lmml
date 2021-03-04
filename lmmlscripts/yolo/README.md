@@ -1,7 +1,8 @@
-## train
+## Local train on CPU (testing)
 
-python3 scripts/yolov3/train.py --dataset=voc/2012
+CPU_DISTRIBUTED=1 PYTHONPATH=$PWD python3 scripts/yolov3/train.py --dataset=voc/2012
 
+For multi GPU training, do not set CPU_DISTRIBUTED var.
 
 # Configs
 - base/train

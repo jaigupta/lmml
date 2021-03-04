@@ -1,3 +1,6 @@
+# Local run on CPU
+CPU_DISTRIBUTED=1 PYTHONPATH=$PWD python3 scripts/yolov3/train.py --dataset=voc/2012
+
 # Configs
 - base:train/gpu
     - gpu: 8 x v100

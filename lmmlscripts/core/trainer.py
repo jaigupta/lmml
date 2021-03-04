@@ -32,6 +32,8 @@ def split_cpu_to_multiple_virtual_devices():
         [tf.config.LogicalDeviceConfiguration(),
         tf.config.LogicalDeviceConfiguration()])
 
+if os.environ.get('CPU_DISTRIBUTED', None):
+    split_cpu_to_multiple_virtual_devices()
 
 def _try_setup_tpu_strategy():
     try:
