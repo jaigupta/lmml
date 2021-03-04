@@ -1,6 +1,7 @@
 import os
 
 from lmmlscripts.core import trainer
+trainer.split_cpu_to_multiple_virtual_devices()
 from lmmlscripts.yolo import dataset
 from lmml.models.yolov3 import (
     YoloV3, YoloV3Tiny, YoloLoss,
@@ -21,19 +22,21 @@ import gin
 from absl.flags import FLAGS
 from absl import app, flags, logging
 
-flags.DEFINE_multi_string('gin_param', None, 'Repeated Gin parameter bindings.')
+flags.DEFINE_multi_string(
+    'gin_param', None, 'Repeated Gin parameter bindings.')
 flags.DEFINE_string('model_config', 'base', 'Repeated Gin parameter bindings.')
+
 
 @gin.configurable
 class Trainer(trainer.BaseTrainer):
 
     def __init__(
             self,
-            image_size = gin.REQUIRED,
-            backbone_path = gin.REQUIRED,
-            num_classes = gin.REQUIRED,
-            dataset = gin.REQUIRED,
-            output_dir = gin.REQUIRED):
+            image_size=gin.REQUIRED,
+            backbone_path=gin.REQUIRED,
+            num_classes=gin.REQUIRED,
+            dataset=gin.REQUIRED,
+            output_dir=gin.REQUIRED):
         super().__init__(output_dir)
         self.image_size = image_size
         self.backbone_path = backbone_path
@@ -45,7 +48,8 @@ class Trainer(trainer.BaseTrainer):
         self.anchors = yolo_anchors
         self.anchor_masks = yolo_anchor_masks
         with self.mirrored_strategy.scope():
-            self.backbone_model = tf.saved_model.load(self.backbone_path).signatures['serving_default']
+            self.backbone_model = tf.saved_model.load(
+                self.backbone_path).signatures['serving_default']
 
         fake_images = tf.zeros((8, self.image_size, self.image_size, 3))
         outputs = self.backbone_model(fake_images)
@@ -57,9 +61,11 @@ class Trainer(trainer.BaseTrainer):
                 training=True,
                 classes=self.num_classes)
 
-            self.optimizer = tf.keras.optimizers.Adam(lr=self.config.learning_rate)
+            self.optimizer = tf.keras.optimizers.Adam(
+                lr=self.config.learning_rate)
             self.loss_fns = [
-                YoloLoss(tf.gather(self.anchors, mask), classes=self.num_classes)
+                YoloLoss(tf.gather(self.anchors, mask),
+                         classes=self.num_classes)
                 for mask in self.anchor_masks]
 
         self.ds_train = dataset.load_dataset(
@@ -78,10 +84,10 @@ class Trainer(trainer.BaseTrainer):
             epoch=self.epoch)
 
     @overrides(trainer.BaseTrainer)
-    @tf.function
-    def train_step(self, batch):
-        images, labels = batch
-        transformed_labels = dataset.transform_targets(labels, self.anchors, self.anchor_masks, self.image_size)
+    @tf.function(experimental_relax_shapes=True)
+    def train_step(self, images, labels):
+        transformed_labels = dataset.transform_targets(
+            labels, self.anchors, self.anchor_masks, self.image_size)
         features = self.backbone_model(images)  # TODO: training = False
         f_36, f_61, f = features['add_10'], features['add_18'], features['add_22']
         with tf.GradientTape() as tape:
@@ -105,10 +111,14 @@ class Trainer(trainer.BaseTrainer):
 
         tf.summary.scalar('epoch', self.epoch, self.total_steps)
         tf.summary.scalar('loss/avg', self.avg_loss.result(), self.total_steps)
-        tf.summary.scalar('loss/total', replica_avg(total_loss), self.total_steps)
-        tf.summary.scalar('loss/pred0', replica_avg(pred_loss[0]), self.total_steps)
-        tf.summary.scalar('loss/pred1', replica_avg(pred_loss[1]), self.total_steps)
-        tf.summary.scalar('loss/pred2', replica_avg(pred_loss[2]), self.total_steps)
+        tf.summary.scalar(
+            'loss/total', replica_avg(total_loss), self.total_steps)
+        tf.summary.scalar(
+            'loss/pred0', replica_avg(pred_loss[0]), self.total_steps)
+        tf.summary.scalar(
+            'loss/pred1', replica_avg(pred_loss[1]), self.total_steps)
+        tf.summary.scalar(
+            'loss/pred2', replica_avg(pred_loss[2]), self.total_steps)
 
     @overrides(trainer.BaseTrainer)
     def train_epoch_end(self):
@@ -118,10 +128,10 @@ class Trainer(trainer.BaseTrainer):
             os.path.join(self.output_dir, 'saved_model/model'))
 
     @overrides(trainer.BaseTrainer)
-    @tf.function
-    def eval_step(self, batch):
-        images, labels = batch
-        transformed_labels = dataset.transform_targets(labels, self.anchors, self.anchor_masks, self.image_size)
+    @tf.function(experimental_relax_shapes=True)
+    def eval_step(self, images, labels):
+        transformed_labels = dataset.transform_targets(
+            labels, self.anchors, self.anchor_masks, self.image_size)
         features = self.backbone_model(images)
         f_36, f_61, f = features['add_10'], features['add_18'], features['add_22']
         outputs = self.model((f_36, f_61, f), training=False)
@@ -135,7 +145,8 @@ class Trainer(trainer.BaseTrainer):
 
     @overrides(trainer.BaseTrainer)
     def eval_end(self):
-        tf.summary.scalar('loss/avg', self.avg_val_loss.result(), self.total_steps)
+        tf.summary.scalar(
+            'loss/avg', self.avg_val_loss.result(), self.total_steps)
 
         self.avg_val_loss.reset_states()
 

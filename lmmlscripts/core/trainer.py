@@ -25,13 +25,22 @@ class DummyStrategy:
         return DummyScope()
 
 
+def split_cpu_to_multiple_virtual_devices():
+    cpu = tf.config.list_physical_devices('CPU')[0]
+    tf.config.set_logical_device_configuration(
+        cpu,
+        [tf.config.LogicalDeviceConfiguration(),
+        tf.config.LogicalDeviceConfiguration()])
+
+
 def _try_setup_tpu_strategy():
     try:
         resolver = tf.distribute.cluster_resolver.TPUClusterResolver()
         tf.config.experimental_connect_to_cluster(resolver)
         topology = tf.tpu.experimental.initialize_tpu_system(resolver)
         logging.info('topology.mesh_shape: %s', topology.mesh_shape)
-        logging.info('topology._device_coordinates: %s', topology.device_coordinates)
+        logging.info('topology._device_coordinates: %s',
+                     topology.device_coordinates)
         return tf.distribute.experimental.TPUStrategy(resolver)
     except ValueError as e:
         logging.warn('Could not initialize TPU: %s', e)
@@ -57,11 +66,13 @@ def _setup_devices_and_strategy(distributed_training: bool):
         return devices, tpu_strategy
     return devices, tf.distribute.MirroredStrategy(devices=devices) if distributed_training else DummyStrategy()
 
+
 def _check_has_obj(o, expected_type):
     if isinstance(o, tuple) or isinstance(o, list):
         return any(_check_has_obj(oi, expected_type) for oi in o)
     return isinstance(o, expected_type)
-    
+
+
 def _validate_checkpointer(checkpointer: tf.train.Checkpoint):
     assert checkpointer is not None
     objs = {o.name: o.ref for o in checkpointer._checkpoint_dependencies}
@@ -71,6 +82,7 @@ def _validate_checkpointer(checkpointer: tf.train.Checkpoint):
         logging.warn('No keras model in checkpointer.')
     if not any(_check_has_obj(o, tf.keras.optimizers.Optimizer) for o in objs.items()):
         logging.warn('No keras optimizer in checkpointer.')
+
 
 def _save_gin_config(output_dir: str):
     # Replace \n with \n\n to improve logging.
@@ -96,7 +108,7 @@ class BaseTrainerConfig:
 
 
 class BaseTrainer:
-    def __init__(self, output_dir:str):
+    def __init__(self, output_dir: str):
         self.config = BaseTrainerConfig()
         self.output_dir = output_dir
 
@@ -128,7 +140,8 @@ class BaseTrainer:
 
     def _build(self):
         self.checkpoints_path = os.path.join(self.output_dir, 'ckpts')
-        self.devices, self.mirrored_strategy = _setup_devices_and_strategy(self.config.distributed_training)
+        self.devices, self.mirrored_strategy = _setup_devices_and_strategy(
+            self.config.distributed_training)
         tf.debugging.set_log_device_placement(True)
 
         self.epoch = tf.Variable(0, dtype=tf.int64)
@@ -142,7 +155,6 @@ class BaseTrainer:
             self.eval_writer = self._create_summary_writer('eval')
         if 'dev_eval' in self.config.modes:
             self.dev_eval_writer = self._create_summary_writer('dev_eval')
-
 
         self.ds_train = None
         self.ds_val = None
@@ -165,7 +177,8 @@ class BaseTrainer:
             self._init_from_checkpoints()
             if cur_total_steps != self.total_steps.numpy():
                 break
-            logging.warn('waiting for next checkpoint steps: %s', cur_total_steps)
+            logging.warn('waiting for next checkpoint steps: %s',
+                         cur_total_steps)
             time.sleep(10)
 
     def _create_summary_writer(self, name):
@@ -178,9 +191,11 @@ class BaseTrainer:
     def _setup_dataset(self):
         if self.config.distributed_training:
             assert self.ds_train is not None
-            self.ds_train = self.mirrored_strategy.experimental_distribute_dataset(self.ds_train)
+            self.ds_train = self.mirrored_strategy.experimental_distribute_dataset(
+                self.ds_train)
             if self.ds_val:
-                self.ds_val = self.mirrored_strategy.experimental_distribute_dataset(self.ds_val)
+                self.ds_val = self.mirrored_strategy.experimental_distribute_dataset(
+                    self.ds_val)
 
         if self.config.run_eval_every > 0:
             # Epoch does not use full dataset. Cache iter so that we don't restart.
@@ -220,16 +235,21 @@ class BaseTrainer:
             # An epoch is defined by number of train iterations.
             logging.info('Running max %s iters for train',
                          self.config.run_eval_every)
-            ds_iter = itertools.islice(self.ds_train_iter, 0, self.config.run_eval_every)
+            ds_iter = itertools.islice(
+                self.ds_train_iter, 0, self.config.run_eval_every)
 
-        for data in ds_iter:
+        for batch in ds_iter:
             step = self.total_steps.numpy()
             if step < 100 or step % 100 == 0:
-                logging.info('train/%s/%s', self.epoch.numpy(), self.total_steps.numpy())
+                logging.info('train/%s/%s', self.epoch.numpy(),
+                             self.total_steps.numpy())
             self.total_steps.assign_add(1)
             self.train_step_start()
 
-            result = self._run_tf_graph(self.train_step, data)
+            if self.config.distributed_training:
+                result = self.mirrored_strategy.run(self.train_step, batch)
+            else:
+                result = self.train_step(batch)
             self.train_step_end(*(result or ()))
 
             self.train_writer.flush()
@@ -264,8 +284,11 @@ class BaseTrainer:
         logging.info('Eval/%s', self.epoch.numpy())
         self.eval_start()
 
-        for data in ds_iter:
-            self._run_tf_graph(self.eval_step, data)
+        for batch in ds_iter:
+            if self.config.distributed_training:
+                self.mirrored_strategy.run(self.eval_step, batch)
+            else:
+                self.eval_step(batch)
 
         self.eval_end()
         self.eval_writer.flush()
@@ -273,7 +296,7 @@ class BaseTrainer:
     def eval_start(self):
         pass
 
-    def eval_step(self):
+    def eval_step(self, batch):
         pass
 
     def _eval_end(self):

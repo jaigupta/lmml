@@ -41,7 +41,7 @@ class Trainer(BaseTrainer):
         for d in tf.config.experimental.list_physical_devices('GPU'):
             tf.config.experimental.set_memory_growth(d, True)
 
-    @overrides(trainer.BaseTrainer)
+    @overrides(BaseTrainer)
     def build(self):
         self.ds_train = dataset.load_dataset(
             self.dataset, 'train', self.config.train_batch_size, self.image_size)
@@ -65,7 +65,7 @@ class Trainer(BaseTrainer):
             optimizer=self.optimizer,
             total_steps=self.total_steps, epoch=self.epoch)
 
-    @overrides(trainer.BaseTrainer)
+    @overrides(BaseTrainer)
     @tf.function
     def train_step(self, batch):
         images, labels = batch
@@ -83,12 +83,12 @@ class Trainer(BaseTrainer):
         self.accuracy.update_state(
             tf.expand_dims(predicted_class, axis=-1), tf.expand_dims(labels, axis=-1))
 
-    @overrides(trainer.BaseTrainer)
+    @overrides(BaseTrainer)
     def train_step_end(self):
         tf.summary.scalar('accuracy', self.accuracy.result(), self.total_steps)
         tf.summary.scalar('avg_loss', self.avg_loss.result(), self.total_steps)
 
-    @overrides(trainer.BaseTrainer)
+    @overrides(BaseTrainer)
     def train_epoch_end(self):
         self.avg_loss.reset_states()
         self.accuracy.reset_states()
@@ -97,7 +97,7 @@ class Trainer(BaseTrainer):
         tf.saved_model.save(self.model, os.path.join(
             self.output_dir, 'saved_model/classifier'))
 
-    @overrides(trainer.BaseTrainer)
+    @overrides(BaseTrainer)
     @tf.function
     def eval_step(self, batch):
         images, labels = batch
@@ -111,7 +111,7 @@ class Trainer(BaseTrainer):
             tf.expand_dims(predicted_class, axis=-1), tf.expand_dims(labels, axis=-1))
         return total_loss, pred_loss
 
-    @overrides(trainer.BaseTrainer)
+    @overrides(BaseTrainer)
     def eval_end(self):
         tf.summary.scalar('avg_loss', self.avg_val_loss.result(), self.total_steps)
         tf.summary.scalar('accuracy', self.val_accuracy.result(), self.total_steps)
