@@ -2,13 +2,13 @@ lmmlscripts.yolo.dataset.load_dataset.image_size = 416
 # yolo.dataset.mapper.img_resize_fn = 'resize'
 
 BaseTrainerConfig.num_epochs = 10
-BaseTrainerConfig.run_eval_every = 10000
-BaseTrainerConfig.eval_iters = 1000
+BaseTrainerConfig.run_eval_every = 4
+BaseTrainerConfig.eval_iters = 2
 BaseTrainerConfig.distributed_training = True
 BaseTrainerConfig.modes = ('train',)
 
-Trainer.backbone_path = './output/saved_model/backbone'
+Trainer.backbone_path = './output/darknet/saved_model/backbone'
 Trainer.image_size = 416
-Trainer.dataset = 'tfds://coco/2017'
+Trainer.dataset = 'tfds://voc/2007'
 Trainer.num_classes = 20
-Trainer.output_dir = './output_yolo'
+Trainer.output_dir = './output/yolo'

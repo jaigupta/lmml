@@ -79,6 +79,8 @@ def transform_targets(y_train, anchors, anchor_masks, size):
 
 _VOC_TFDS = ('coco', 'voc')
 
+def yx_to_xy(coords):
+    return tf.gather(coords, [1, 0, 3, 2], axis=-1)
 
 def create_voc_mapper(image_size):
 
@@ -88,7 +90,7 @@ def create_voc_mapper(image_size):
         image = tf.image.resize(image, (image_size, image_size)) / 255.
         labels = example['objects']['label']
         labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
-        bboxes = example['objects']['bbox']
+        bboxes = yx_to_xy(example['objects']['bbox'])
         res = tf.concat([bboxes, labels],
                         axis=-1,)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
         return image, tf.sparse.from_dense(res)
@@ -105,7 +107,7 @@ def create_waymo_mapper(image_size, image_key):
 
         labels = ex['labels']['type']
         labels = tf.expand_dims(tf.cast(labels, tf.float32), axis=-1)
-        bboxes = ex['labels']['bbox']
+        bboxes = yx_to_xy(ex['labels']['bbox'])
         res = tf.concat(
             [bboxes, labels], axis=-1)  # pylint: disable=unexpected-keyword-arg, no-value-for-parameter
 

@@ -1,3 +1,4 @@
+import itertools
 import os
 
 from lmmlscripts.core import trainer
@@ -35,12 +36,16 @@ class Trainer(trainer.BaseTrainer):
             backbone_path=gin.REQUIRED,
             num_classes=gin.REQUIRED,
             dataset=gin.REQUIRED,
-            output_dir=gin.REQUIRED):
+            output_dir=gin.REQUIRED,
+            dev_eval_batch_size=2,
+            dev_eval_iters=100):
         super().__init__(output_dir)
         self.image_size = image_size
         self.backbone_path = backbone_path
         self.num_classes = num_classes
         self.dataset = dataset
+        self.dev_eval_batch_size = dev_eval_batch_size
+        self.dev_eval_iters = dev_eval_iters
 
     @overrides(trainer.BaseTrainer)
     def build(self):
@@ -81,6 +86,12 @@ class Trainer(trainer.BaseTrainer):
             optimizer=self.optimizer,
             total_steps=self.total_steps,
             epoch=self.epoch)
+
+        self.ds_dev = dataset.load_dataset(
+            self.dataset, 'validation', self.dev_val_batch_size, self.image_size)
+        if self.config.distributed_training:
+            self.ds_dev = self.mirrored_strategy.experimental_distribute_dataset(self.ds_dev)
+            self.ds_dev_iter = iter(self.ds_dev)
 
     @overrides(trainer.BaseTrainer)
     @tf.function(experimental_relax_shapes=True)
@@ -148,6 +159,18 @@ class Trainer(trainer.BaseTrainer):
             'loss/avg', self.avg_val_loss.result(), self.total_steps)
 
         self.avg_val_loss.reset_states()
+
+    @overrides(trainer.BaseTrainer)
+    def dev_eval(self):
+        for i, batch in enumerate(itertools.islice(self.ds_dev_iter, 0, self.dev_eval_iters)):
+            images, labels = batch
+            transformed_labels = dataset.transform_targets(
+                labels, self.anchors, self.anchor_masks, self.image_size)
+            features = self.backbone_model(images)
+            f_36, f_61, f = features['add_10'], features['add_18'], features['add_22']
+            outputs = self.model((f_36, f_61, f), training=False)
+            # TODO: Plot image with actual labels
+            # TODO: Plot generated outputs on the same image with a different color.
 
 
 def main(_argv):

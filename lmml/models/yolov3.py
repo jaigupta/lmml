@@ -142,8 +142,10 @@ def draw_outputs(img, outputs, class_names):
         x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
         x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
         img = cv2.rectangle(img, x1y1, x2y2, (255, 0, 0), 2)
+        class_ = int(classes[i])
+        class_name = class_names[class_]
         img = cv2.putText(img, '{} {:.4f}'.format(
-            class_names[int(classes[i])], objectness[i]),
+            class_names, objectness[i]),
             x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
     return img
 
@@ -158,7 +160,9 @@ def draw_labels(x, y, class_names):
         x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
         x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
         img = cv2.rectangle(img, x1y1, x2y2, (255, 0, 0), 2)
-        img = cv2.putText(img, class_names[classes[i]],
+        class_ = int(classes[i])
+        class_name = class_names[class_]
+        img = cv2.putText(img, class_name,
                           x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL,
                           1, (0, 0, 255), 2)
     return img
@@ -285,6 +289,18 @@ def yolo_nms(outputs, anchors, masks, classes):
     return boxes, scores, classes, valid_detections
 
 
+def yolo_outputs_to_pred(output_0, output_1, output_2, anchors, masks, classes):
+
+    boxes_0 = yolo_boxes(output_0, tf.gather(anchors, masks[0]), classes)
+    boxes_1 = yolo_boxes(output_1, tf.gather(anchors, masks[1]), classes)
+    boxes_2 = yolo_boxes(output_2, tf.gather(anchors, masks[2]), classes)
+
+    outputs = yolo_nms(
+        (boxes_0[:3], boxes_1[:3], boxes_2[:3]), anchors, masks, classes)
+
+    return outputs
+
+
 def YoloV3(feature_shapes: Tuple[Any, Any, Any], channels=3, anchors=yolo_anchors,
            masks=yolo_anchor_masks, classes=80, training=False):
     f_36_shape, f_61_shape, f_shape = feature_shapes
@@ -306,15 +322,8 @@ def YoloV3(feature_shapes: Tuple[Any, Any, Any], channels=3, anchors=yolo_anchor
     if training:
         return Model((f_36, f_61, f), (output_0, output_1, output_2), name='yolov3')
 
-    boxes_0 = Lambda(lambda x: yolo_boxes(x, anchors[masks[0]], classes),
-                     name='yolo_boxes_0')(output_0)
-    boxes_1 = Lambda(lambda x: yolo_boxes(x, anchors[masks[1]], classes),
-                     name='yolo_boxes_1')(output_1)
-    boxes_2 = Lambda(lambda x: yolo_boxes(x, anchors[masks[2]], classes),
-                     name='yolo_boxes_2')(output_2)
-
-    outputs = Lambda(lambda x: yolo_nms(x, anchors, masks, classes),
-                     name='yolo_nms')((boxes_0[:3], boxes_1[:3], boxes_2[:3]))
+    outputs = Lambda(lambda x1, x2, x3: yolo_outputs_to_pred(x1, x2, x3, anchors, masks, classes),
+                     name='yolo_nms')(output_0, output_1, output_2)
 
     return Model((f_36, f_61, f), outputs, name='yolov3')
 

@@ -308,4 +308,7 @@ class BaseTrainer:
         pass
 
     def _dev_eval(self):
+        self.dev_eval()
+
+    def dev_eval(self):
         pass
