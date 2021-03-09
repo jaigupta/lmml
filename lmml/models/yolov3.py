@@ -144,7 +144,7 @@ def draw_outputs(img, outputs, class_names):
         class_ = int(classes[i])
         class_name = class_names[class_]
         img = cv2.putText(img, '{} {:.4f}'.format(
-            class_names, objectness[i]),
+            class_name, objectness[i]),
             x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
     return img
 
