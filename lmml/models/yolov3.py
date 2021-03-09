@@ -136,7 +136,6 @@ def broadcast_iou(box_1, box_2):
 def draw_outputs(img, outputs, class_names):
     import cv2
     boxes, objectness, classes, nums = outputs
-    boxes, objectness, classes, nums = boxes[0], objectness[0], classes[0], nums[0]
     wh = np.flip(img.shape[0:2])
     for i in range(nums):
         x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))

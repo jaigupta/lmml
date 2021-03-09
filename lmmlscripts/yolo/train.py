@@ -88,7 +88,8 @@ class Trainer(trainer.BaseTrainer):
             epoch=self.epoch)
 
         self.ds_dev = dataset.load_dataset(
-            self.dataset, 'validation', self.dev_val_batch_size, self.image_size)
+            self.dataset, 'validation', self.dev_eval_batch_size, self.image_size)
+
         if self.config.distributed_training:
             self.ds_dev = self.mirrored_strategy.experimental_distribute_dataset(self.ds_dev)
             self.ds_dev_iter = iter(self.ds_dev)
