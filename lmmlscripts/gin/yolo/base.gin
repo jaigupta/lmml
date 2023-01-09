@@ -7,7 +7,7 @@ BaseTrainerConfig.eval_iters = 2
 BaseTrainerConfig.distributed_training = True
 BaseTrainerConfig.modes = ('train',)
 
-Trainer.backbone_path = './output/darknet/saved_model/backbone'
+Trainer.backbone_path = '/Users/jaigupta/data/saved_models/darknet'
 Trainer.image_size = 416
 Trainer.dataset = 'tfds://voc/2007'
 Trainer.num_classes = 20
